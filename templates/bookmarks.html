@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div id="bookmarks-view">
+    <h1 class="page-title">Your Bookmarks</h1>
+    <div class="controls-row">
+        <div class="search-bar">
+            <input type="text" placeholder="Search Bookmarks" id="bookmarkSearch">
+            <i class="fa-solid fa-magnifying-glass search-icon"></i>
+        </div>
+    </div>
+    
+    <!-- DYNAMIC CONTAINER -->
+    <div class="bookmarks-list" id="dynamic-bookmarks-container">
+        <div style="text-align:center; padding:40px; color:#888;">
+            <i class="fa-solid fa-circle-notch fa-spin"></i> Loading...
+        </div>
+    </div>
+</div>
+{% endblock %}

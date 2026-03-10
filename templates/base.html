@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Orbit Events</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script type="module" src="/static/js/app-logic.js"></script>
+    <!-- Add Favicon -->
+    <link rel="icon" type="image/png" href="/static/images/Orbitlogo.png">
+</head>
+
+<body class="logged-in">
+
+    <!-- PRELOADER -->
+    <div id="app-preloader">
+        <i class="fa-solid fa-circle-notch fa-spin"></i>
+    </div>
+
+    <!-- NAVBAR -->
+    <div id="dynamic-bg" style="height: 70px;">
+        <div class="navbar-elements" style="opacity: 1; pointer-events: auto;">
+            <div class="nav-icon"><i class="fa-solid fa-bars"></i></div>
+            <div class="nav-logo-container">
+                <img src="/static/images/Orbitlogo.png" alt="Orbit Logo" class="nav-logo-img">
+            </div>
+
+            <div class="profile-wrapper">
+                <div class="nav-profile" id="profileBtn"></div>
+                <div class="profile-menu" id="profileMenu">
+                    <div class="profile-item" id="logoutBtn">
+                        <i class="fa-solid fa-right-from-bracket"></i> <span>Logout</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SIDE MENU -->
+    <div id="side-menu-overlay"></div>
+    <div id="side-menu">
+        <div class="menu-header">
+            <h2>Menu</h2>
+            <button id="close-menu-btn"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <ul class="menu-list">
+            <a href="/home">
+                <li class="menu-item {% if active_page == 'home' %}active{% endif %}">
+                    <i class="fa-solid fa-house"></i> Home
+                </li>
+            </a>
+            <a href="/bookmarks">
+                <li class="menu-item {% if active_page == 'bookmarks' %}active{% endif %}">
+                    <i class="fa-solid fa-bookmark"></i> Bookmarks
+                </li>
+            </a>
+        </ul>
+    </div>
+
+    <!-- MAIN CONTENT -->
+    {% block content %}{% endblock %}
+
+    <!-- EVENT DETAILS MODAL (With Countdown AND Map) -->
+    <div id="event-modal-overlay" class="modal-overlay">
+        <div class="modal-card">
+            <button id="close-modal-btn-inner">&times;</button>
+
+            <div class="modal-header">
+                <h2 id="modal-title">Event Title</h2>
+                <div id="modal-meta">
+                    <span id="modal-date">Date</span> • <span id="modal-desc">Description</span>
+                </div>
+            </div>
+
+            <!-- 1. THE COUNTDOWN -->
+            <div class="modal-countdown-wrapper">
+                <p>Event Starts In:</p>
+                <div class="live-countdown-grid">
+                    <div class="live-box">
+                        <span id="cd-days" class="live-num">00</span>
+                        <span class="live-label">DAYS</span>
+                    </div>
+                    <div class="live-sep">:</div>
+                    <div class="live-box">
+                        <span id="cd-hours" class="live-num">00</span>
+                        <span class="live-label">HRS</span>
+                    </div>
+                    <div class="live-sep">:</div>
+                    <div class="live-box">
+                        <span id="cd-minutes" class="live-num">00</span>
+                        <span class="live-label">MIN</span>
+                    </div>
+                    <div class="live-sep">:</div>
+                    <div class="live-box">
+                        <span id="cd-seconds" class="live-num">00</span>
+                        <span class="live-label">SEC</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. THE LOCATION (Map or Text) -->
+            <div id="modal-location-container" style="margin-top: 30px; width: 100%;">
+                <!-- JS injects content here -->
+            </div>
+
+        </div>
+    </div>
+
+    <!-- DAY VIEW MODAL -->
+    <div id="day-view-modal" class="modal-overlay">
+        <div class="modal-card day-card">
+            <button id="close-day-btn"
+                style="position:absolute; top:15px; right:20px; background:none; border:none; font-size:28px; cursor:pointer; color:#888;">&times;</button>
+
+            <div class="modal-header" style="margin-bottom: 20px;">
+                <h2 id="day-modal-title">Date</h2>
+            </div>
+
+            <div id="day-events-list" class="day-events-container"></div>
+        </div>
+    </div>
+
+    <div id="filter-modal-overlay" class="modal-overlay">
+        <div class="modal-card" style="text-align: left; max-width: 450px;">
+            <div class="modal-header"
+                style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+                <h2 style="margin:0; font-size:22px;">Customize Filters</h2>
+                <button id="close-filter-btn"
+                    style="background:none; border:none; font-size:24px; cursor:pointer;">&times;</button>
+            </div>
+
+            <div class="filter-form">
+                <!-- Task Toggle -->
+                <div class="form-group" style="margin-bottom: 20px;">
+                    <label style="display:flex; align-items:center; gap:10px; cursor:pointer; font-weight:500;">
+                        <input type="checkbox" id="filter-show-tasks" checked style="width:18px; height:18px;">
+                        Show Tasks
+                    </label>
+                </div>
+
+                <!-- Keywords -->
+                <div class="form-group" style="margin-bottom: 30px;">
+                    <label style="display:block; margin-bottom:8px; font-weight:600;">Keywords (comma-separated)</label>
+                    <input type="text" id="filter-keywords" placeholder="e.g., concert, party, sports" class="cal-select" style="width:100%; padding:8px; border:1px solid #ccc; border-radius:4px;">
+                </div>
+
+                <!-- Actions -->
+                <div style="display:flex; gap:10px;">
+                    <button id="apply-filters-btn"
+                        style="flex:1; background:#000; color:white; padding:12px; border-radius:30px; border:none; cursor:pointer; font-weight:600;">Apply</button>
+                    <button id="reset-filters-btn"
+                        style="flex:1; background:white; color:#000; border:1px solid #ccc; padding:12px; border-radius:30px; cursor:pointer; font-weight:600;">Reset</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</body>
+
+</html>

@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Orbit Admin CMS</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script type="module" src="/static/js/admin-logic.js"></script>
+    <style>
+        body { padding: 40px; max-width: 800px; margin: 0 auto; background: white; }
+        .form-group { margin-bottom: 20px; }
+        label { display: block; font-weight: 600; margin-bottom: 5px; }
+        input, textarea, select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 8px; font-family: 'Inter', sans-serif; }
+        button { background: #000; color: white; padding: 12px 24px; border-radius: 8px; cursor: pointer; border: none; font-size: 16px; }
+        .event-item { border: 1px solid #eee; padding: 15px; margin-bottom: 10px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; }
+        .delete-btn { color: red; cursor: pointer; font-weight: bold; }
+        
+        /* Toggle Styles */
+        .radio-group { display: flex; gap: 20px; margin-bottom: 10px; }
+        .radio-group label { display: flex; align-items: center; gap: 5px; font-weight: 400; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>Orbit Admin CMS</h1>
+    <p>Manage Public Events (Blue)</p>
+    
+    <div id="auth-warning" style="display:none; color:red;">You are not authorized.</div>
+    
+    <div id="admin-panel" style="display:none;">
+        <div style="background: #f9f9f9; padding: 25px; border-radius: 12px; margin-bottom: 40px; border: 1px solid #eee;">
+            <h3>Add New Event</h3>
+            
+            <div class="form-group">
+                <label>Event Title</label>
+                <input type="text" id="evtTitle" placeholder="e.g. City Music Festival">
+            </div>
+            
+            <div class="form-group">
+                <label>Description</label>
+                <textarea id="evtDesc" rows="3" placeholder="Event details..."></textarea>
+            </div>
+            
+            <div class="form-group">
+                <label>Date & Time</label>
+                <input type="datetime-local" id="evtDate">
+            </div>
+
+            <!-- LOCATION TOGGLE -->
+            <div class="form-group">
+                <label>Location Type</label>
+                <div class="radio-group">
+                    <label><input type="radio" name="locType" value="text" checked> Text Address</label>
+                    <label><input type="radio" name="locType" value="map"> Google Map Embed</label>
+                </div>
+            </div>
+
+            <!-- Input: TEXT -->
+            <div class="form-group" id="group-loc-text">
+                <input type="text" id="evtLocText" placeholder="e.g. 123 Main Street, New York">
+            </div>
+
+            <!-- Input: MAP -->
+            <div class="form-group" id="group-loc-map" style="display: none;">
+                <input type="text" id="evtLocMap" placeholder='Paste Embed URL (src="...")'>
+                <small style="color:#666; display:block; margin-top:5px;">
+                    Go to Google Maps -> Share -> Embed a map -> Copy HTML -> Paste here.
+                </small>
+            </div>
+
+            <button id="addBtn">Publish Event</button>
+        </div>
+
+        <h3>Existing Public Events</h3>
+        <div id="cms-list">Loading...</div>
+    </div>
+</body>
+</html>

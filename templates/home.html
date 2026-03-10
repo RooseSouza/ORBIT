@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div id="home-view">
+
+    <!-- View Toggle -->
+    <div class="view-toggle-container">
+        <div class="view-toggle">
+            <button class="toggle-btn active" id="btnListView">List View</button>
+            <button class="toggle-btn" id="btnCalendarView">Calendar View</button>
+        </div>
+    </div>
+
+    <!-- Controls Row -->
+    <div class="controls-row">
+        <div class="search-bar">
+            <!-- Add ID -->
+            <input type="text" id="searchInput" placeholder="Search Event">
+            <i class="fa-solid fa-magnifying-glass search-icon"></i>
+        </div>
+
+        <div class="custom-dropdown">
+            <!-- Add ID -->
+            <button class="dropdown-btn" id="sourceFilterBtn"><span>All Events</span><i
+                    class="fa-solid fa-chevron-down"></i></button>
+            <div class="dropdown-menu">
+                <div class="dropdown-item" data-filter-type="source" data-value="all">All Events</div>
+                <div class="dropdown-item" data-filter-type="source" data-value="my">My Events</div>
+                <div class="dropdown-item" data-filter-type="source" data-value="public">Public Events</div>
+            </div>
+        </div>
+
+        <div class="custom-dropdown" id="timePeriodDropdown">
+            <!-- Add ID -->
+            <button class="dropdown-btn" id="timeFilterBtn"><span>Any Time</span><i
+                    class="fa-solid fa-chevron-down"></i></button>
+            <div class="dropdown-menu">
+                <div class="dropdown-item" data-filter-type="time" data-value="all">Any Time</div>
+                <div class="dropdown-item" data-filter-type="time" data-value="week">This Week</div>
+                <div class="dropdown-item" data-filter-type="time" data-value="month">This Month</div>
+                <div class="dropdown-item" data-filter-type="time" data-value="year">This Year</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ... Legend ... -->
+
+    <div class="main-grid">
+        <div class="content-area">
+
+            <div id="listViewContent">
+                <!-- Add ID to container -->
+                <div class="filters-row" id="categoryChips">
+                    <button class="chip active" data-cat="all">All Categories</button>
+                    <!-- Added data-keywords to simulate smart categorization -->
+                    <button class="chip" data-cat="sports"
+                        data-keywords="match,game,sport,football,soccer,gym,tennis,basketball,baseball,hockey,olympic,tournament,league,cup,race,marathon,workout,fitness,athletic,swimming,cycling,running,boxing,wrestling,golf">Sports</button>
+                    <button class="chip" data-cat="music" data-keywords="concert,music,song,band,live,dj,performance,gig,show,tour,album,artist,singer,orchestra,jazz,rock,pop,classical,festival,opera,symphony,choir,rap,hip-hop,electronic,dance">Music</button>
+                    <button class="chip" data-cat="festivals"
+                        data-keywords="festival,party,gala,fair,fest,event,celebration,carnival,expo,exhibition,conference,summit,convention,trade show,cultural,food,beer,wine,art,film,theater,book,comic,anime,gaming,tech,technology,education,business,networking,charity,volunteer,religious,spiritual,holiday,seasonal">Festivals</button>
+
+                    <!-- Filter Button -->
+                    <button class="chip filter-btn" id="openFilterModalBtn"><i class="fa-solid fa-sliders"></i>
+                        Filters</button>
+                </div>
+
+                <!-- THIS IS WHERE THE JS INJECTS CARDS -->
+                <div class="events-list" id="dynamic-events-container">
+                    <div style="text-align:center; padding: 30px; color: #888;">
+                        <i class="fa-solid fa-circle-notch fa-spin"></i> Initializing...
+                    </div>
+                </div>
+            </div>
+
+            <!-- CALENDAR VIEW -->
+            <div id="calendarViewContent" class="view-hidden">
+                <div class="calendar-card">
+                    <div class="cal-header">
+                        <button class="cal-nav-btn" id="prevMonth"><i class="fa-solid fa-chevron-left"></i></button>
+                        <div class="cal-selectors">
+                            <!-- NEW BUTTON HERE -->
+                            <button id="goToToday" class="cal-today-btn">Today</button>
+
+                            <select id="calMonthSelect" class="cal-select"></select>
+                            <select id="calYearSelect" class="cal-select"></select>
+                        </div>
+                        <button class="cal-nav-btn" id="nextMonth"><i class="fa-solid fa-chevron-right"></i></button>
+                    </div>
+                    <div class="cal-weekdays">
+                        <div>Su</div>
+                        <div>Mo</div>
+                        <div>Tu</div>
+                        <div>We</div>
+                        <div>Th</div>
+                        <div>Fr</div>
+                        <div>Sa</div>
+                    </div>
+                    <div class="cal-grid" id="calendarGrid"></div>
+                </div>
+            </div>
+
+        </div>
+
+        <div class="sidebar">
+            <div class="sidebar-block"></div>
+            <div class="sidebar-block"></div>
+        </div>
+    </div>
+
+</div>
+{% endblock %}
