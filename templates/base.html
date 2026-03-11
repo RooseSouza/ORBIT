@@ -21,8 +21,8 @@
     </div>
 
     <!-- NAVBAR -->
-    <div id="dynamic-bg" style="height: 70px;">
-        <div class="navbar-elements" style="opacity: 1; pointer-events: auto;">
+    <div id="dynamic-bg">
+        <div class="navbar-elements">
             <div class="nav-icon"><i class="fa-solid fa-bars"></i></div>
             <div class="nav-logo-container">
                 <img src="/static/images/Orbitlogo.png" alt="Orbit Logo" class="nav-logo-img">
@@ -149,10 +149,52 @@
                 </div>
 
                 <!-- Keywords -->
-                <div class="form-group" style="margin-bottom: 30px;">
+                <div class="form-group" style="margin-bottom: 18px;">
                     <label style="display:block; margin-bottom:8px; font-weight:600;">Keywords (comma-separated)</label>
                     <input type="text" id="filter-keywords" placeholder="e.g., concert, party, sports"
                         class="cal-select" style="width:100%; padding:8px; border:1px solid #ccc; border-radius:4px;">
+                </div>
+
+                <div class="form-group" style="margin-bottom: 18px;">
+                    <label style="display:block; margin-bottom:8px; font-weight:600;">Date Range</label>
+                    <div style="display:flex; gap:8px;">
+                        <input type="date" id="filter-start-date" class="cal-select"
+                            style="width:100%; padding:8px; border:1px solid #ccc; border-radius:4px;">
+                        <input type="date" id="filter-end-date" class="cal-select"
+                            style="width:100%; padding:8px; border:1px solid #ccc; border-radius:4px;">
+                    </div>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 18px;">
+                    <label style="display:block; margin-bottom:8px; font-weight:600;">Event Kind</label>
+                    <select id="filter-event-type" class="cal-select"
+                        style="width:100%; padding:8px; border:1px solid #ccc; border-radius:4px;">
+                        <option value="all">All</option>
+                        <option value="event">Events Only</option>
+                        <option value="task">Tasks Only</option>
+                        <option value="public">Public Only</option>
+                    </select>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 18px;">
+                    <label style="display:block; margin-bottom:8px; font-weight:600;">Location Type</label>
+                    <select id="filter-location-type" class="cal-select"
+                        style="width:100%; padding:8px; border:1px solid #ccc; border-radius:4px;">
+                        <option value="all">All</option>
+                        <option value="map">Map</option>
+                        <option value="text">Text</option>
+                    </select>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 30px;">
+                    <label style="display:block; margin-bottom:8px; font-weight:600;">Sort By</label>
+                    <select id="filter-sort-by" class="cal-select"
+                        style="width:100%; padding:8px; border:1px solid #ccc; border-radius:4px;">
+                        <option value="soonest">Soonest First</option>
+                        <option value="latest">Latest First</option>
+                        <option value="name_asc">Name A-Z</option>
+                        <option value="name_desc">Name Z-A</option>
+                    </select>
                 </div>
 
                 <!-- Actions -->

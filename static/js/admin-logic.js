@@ -28,20 +28,38 @@ document.addEventListener("DOMContentLoaded", () => {
   const addBtn = document.getElementById("addBtn");
   const adminLoginBtn = document.getElementById("adminLoginBtn");
   const adminLogoutBtn = document.getElementById("adminLogoutBtn");
+  const warningLogoutBtn = document.getElementById("warningLogoutBtn");
+  const adminBackLink = document.getElementById("adminBackLink");
   const listDiv = document.getElementById("cms-list");
+  const dateInput = document.getElementById("evtDate");
 
   // Toggle Elements
   const radios = document.getElementsByName("locType");
   const groupText = document.getElementById("group-loc-text");
   const groupMap = document.getElementById("group-loc-map");
 
+  let datePicker = null;
+  if (dateInput && typeof window.flatpickr === "function") {
+    datePicker = window.flatpickr(dateInput, {
+      enableTime: true,
+      dateFormat: "Y-m-d H:i",
+      altInput: true,
+      altFormat: "F j, Y h:i K",
+      minDate: "today",
+      time_24hr: false,
+    });
+  }
+
   // 1. Auth Check
   onAuthStateChanged(auth, (user) => {
     adminPanel.style.display = "none";
     authWarning.style.display = "none";
     loginContainer.style.display = "none";
+    if (adminLogoutBtn) adminLogoutBtn.style.display = "none";
+    if (adminBackLink) adminBackLink.style.display = user ? "inline-flex" : "none";
 
     if (user) {
+      if (adminLogoutBtn) adminLogoutBtn.style.display = "inline-flex";
       if (user.email === ADMIN_EMAIL) {
         adminPanel.style.display = "block";
         loadEvents();
@@ -65,11 +83,14 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // 3. Logout Handler
-  if (adminLogoutBtn) {
-    adminLogoutBtn.addEventListener("click", () => {
-      signOut(auth);
+  [adminLogoutBtn, warningLogoutBtn].forEach((btn) => {
+    if (!btn) return;
+    btn.addEventListener("click", () => {
+      signOut(auth).finally(() => {
+        window.location.href = "/";
+      });
     });
-  }
+  });
 
   // 4. Toggle Logic
   radios.forEach((radio) => {
@@ -88,7 +109,7 @@ document.addEventListener("DOMContentLoaded", () => {
   addBtn.addEventListener("click", async () => {
     const title = document.getElementById("evtTitle").value;
     const desc = document.getElementById("evtDesc").value;
-    const date = document.getElementById("evtDate").value;
+    const date = dateInput ? dateInput.value : "";
 
     let locType = "text";
     let locValue = "";
@@ -126,7 +147,11 @@ document.addEventListener("DOMContentLoaded", () => {
       // Clear form
       document.getElementById("evtTitle").value = "";
       document.getElementById("evtDesc").value = "";
-      document.getElementById("evtDate").value = "";
+      if (datePicker) {
+        datePicker.clear();
+      } else if (dateInput) {
+        dateInput.value = "";
+      }
       document.getElementById("evtLocText").value = "";
       document.getElementById("evtLocMap").value = "";
 
