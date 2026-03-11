@@ -21,14 +21,43 @@ app.config['MAIL_USE_SSL'] = True
 mail = Mail(app)
 
 # --- Firebase Admin Setup ---
-# Download serviceAccountKey.json from Firebase Console > Project Settings > Service Accounts
-# then set: set GOOGLE_APPLICATION_CREDENTIALS=serviceAccountKey.json
+# Supports either:
+# 1) Service account values from .env (FIREBASE_* vars)
+# 2) A credentials file path via GOOGLE_APPLICATION_CREDENTIALS
 _db = None
 try:
     import firebase_admin
     from firebase_admin import credentials, firestore as fs_admin
-    cred_path = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS', 'serviceAccountKey.json')
-    cred = credentials.Certificate(cred_path)
+
+    service_account = {
+        "type": os.environ.get("FIREBASE_TYPE"),
+        "project_id": os.environ.get("FIREBASE_PROJECT_ID"),
+        "private_key_id": os.environ.get("FIREBASE_PRIVATE_KEY_ID"),
+        "private_key": os.environ.get("FIREBASE_PRIVATE_KEY"),
+        "client_email": os.environ.get("FIREBASE_CLIENT_EMAIL"),
+        "client_id": os.environ.get("FIREBASE_CLIENT_ID"),
+        "auth_uri": os.environ.get("FIREBASE_AUTH_URI", "https://accounts.google.com/o/oauth2/auth"),
+        "token_uri": os.environ.get("FIREBASE_TOKEN_URI", "https://oauth2.googleapis.com/token"),
+    }
+
+    has_env_service_account = all([
+        service_account["type"],
+        service_account["project_id"],
+        service_account["private_key_id"],
+        service_account["private_key"],
+        service_account["client_email"],
+        service_account["client_id"],
+    ])
+
+    if has_env_service_account:
+        # .env often stores newlines as escaped "\\n"; convert to real newlines.
+        private_key = service_account["private_key"].strip('"').replace('\\n', '\n')
+        service_account["private_key"] = private_key
+        cred = credentials.Certificate(service_account)
+    else:
+        cred_path = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS', 'serviceAccountKey.json')
+        cred = credentials.Certificate(cred_path)
+
     firebase_admin.initialize_app(cred)
     _db = fs_admin.client()
     print("[INFO] Firebase Admin SDK initialised.")
