@@ -1,4 +1,4 @@
-import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+import { signOut, onAuthStateChanged, signInWithPopup, GoogleAuthProvider } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import { getFirestore, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 import { auth, provider, app } from "/static/js/firebase-config.js";
 import { toggleBookmark, getBookmarks, isBookmarked } from "/static/js/bookmarks-logic.js";
@@ -11,7 +11,7 @@ window.currentFilteredEvents = [];
 let currentFilters = {
     search: "",
     source: "all", time: "all", category: "all", categoryKeywords: [], 
-    showTasks: true, startDate: null, endDate: null, status: "all", keywords: []
+    showTasks: true, startDate: null, endDate: null, status: "all"
 };
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -30,7 +30,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const closeMenuBtn = document.getElementById('close-menu-btn');
     const eventsContainer = document.getElementById('dynamic-events-container');
 
-    // Filter Refs
+    // Modals & Filters (Refs)
     const searchInput = document.getElementById('searchInput');
     const categoryChips = document.getElementById('categoryChips');
     const openFilterModalBtn = document.getElementById('openFilterModalBtn');
@@ -38,22 +38,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const closeFilterBtn = document.getElementById('close-filter-btn');
     const applyFiltersBtn = document.getElementById('apply-filters-btn');
     const resetFiltersBtn = document.getElementById('reset-filters-btn');
-    
     const filterShowTasks = document.getElementById('filter-show-tasks');
-    const filterKeywords = document.getElementById('filter-keywords');
-
-    // Modal Refs
+    const filterStartDate = document.getElementById('filter-start-date');
+    const filterEndDate = document.getElementById('filter-end-date');
+    const filterStatus = document.getElementById('filter-status');
     const modalOverlay = document.getElementById('event-modal-overlay');
     const closeModalBtn = document.getElementById('close-modal-btn-inner');
     const modalTitle = document.getElementById('modal-title');
     const modalDate = document.getElementById('modal-date');
     const modalDesc = document.getElementById('modal-desc');
-    
     const dayModalOverlay = document.getElementById('day-view-modal');
     const closeDayBtn = document.getElementById('close-day-btn');
     const dayModalTitle = document.getElementById('day-modal-title');
     const dayEventsList = document.getElementById('day-events-list');
-
     const elDays = document.getElementById('cd-days');
     const elHours = document.getElementById('cd-hours');
     const elMins = document.getElementById('cd-minutes');
@@ -96,21 +93,42 @@ document.addEventListener('DOMContentLoaded', () => {
     // ==========================================
     async function fetchGoogleData() {
         const token = localStorage.getItem('googleCalendarToken');
-        if (!token) { fetchFirestoreOnly(); return; }
+        
+        // If no token (but logged in), prompt re-sync
+        if (!token) {
+            handleExpiredToken();
+            return;
+        }
         
         eventsContainer.innerHTML = '<div style="text-align:center; padding: 20px; color: #888;"><i class="fa-solid fa-circle-notch fa-spin"></i> Syncing...</div>';
         const now = new Date().toISOString();
 
         try {
-            const [primaryEvents, birthdayEvents, tasks, publicEvents] = await Promise.all([
+            // We use Promise.allSettled so if Google fails, Public events still load
+            const results = await Promise.allSettled([
                 fetchCalendarEvents(token, 'primary', now, 'green'),
                 fetchCalendarEvents(token, 'addressbook#contacts@group.v.calendar.google.com', now, 'green'),
                 fetchAllTaskLists(token, 'green'),
                 fetchFirestoreEvents('blue') 
             ]);
 
+            // Check if any Google request failed with "TOKEN_EXPIRED"
+            const tokenExpired = results.some(r => r.status === 'rejected' && r.reason.message === 'TOKEN_EXPIRED');
+            
+            if (tokenExpired) {
+                handleExpiredToken();
+                return;
+            }
+
+            // Extract successful data
+            const primaryEvents = results[0].status === 'fulfilled' ? results[0].value : [];
+            const birthdayEvents = results[1].status === 'fulfilled' ? results[1].value : [];
+            const tasks = results[2].status === 'fulfilled' ? results[2].value : [];
+            const publicEvents = results[3].status === 'fulfilled' ? results[3].value : [];
+
             const rawItems = [...primaryEvents, ...birthdayEvents, ...tasks, ...publicEvents];
             
+            // Deduplicate
             const idMap = new Map();
             rawItems.forEach((item) => { if (!idMap.has(item.id)) idMap.set(item.id, item); });
             const step1Items = Array.from(idMap.values());
@@ -128,6 +146,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
             const uniqueItems = Array.from(finalMap.values());
+
+            // Initial Sort
             uniqueItems.sort((a, b) => new Date(a.sortDate) - new Date(b.sortDate));
 
             window.globalEventsStore = uniqueItems;
@@ -136,6 +156,55 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (error) {
             console.error("Error:", error);
             eventsContainer.innerHTML = '<div style="padding:20px; text-align:center;">Error loading data.</div>';
+        }
+    }
+
+        function handleExpiredToken() {
+        localStorage.removeItem('googleCalendarToken');
+        
+        fetchFirestoreEvents('blue').then(publicEvents => {
+            window.globalEventsStore = publicEvents;
+            applyFilters();
+            
+            const reconnectDiv = document.createElement('div');
+            // Changed background to white, added border, changed text color to black
+            reconnectDiv.style.cssText = "background: #fff3cd; color: #856404; padding: 15px; border-radius: 10px; margin-bottom: 20px; text-align: center; border: 1px solid #ffeeba;";
+            reconnectDiv.innerHTML = `
+                <p style="margin:0 0 10px 0; font-weight:600;"><i class="fa-solid fa-triangle-exclamation"></i> Google Session Expired</p>
+                <button id="reSyncBtn" style="background:white; color:#000; border:1px solid #000; padding:8px 15px; border-radius:30px; cursor:pointer; font-weight:600;">Reconnect Google Account</button>
+            `;
+            
+            if (eventsContainer) {
+                eventsContainer.prepend(reconnectDiv);
+                document.getElementById('reSyncBtn').addEventListener('click', reSyncGoogle);
+            }
+        });
+    }
+
+        async function reSyncGoogle() {
+        try {
+            // *** CRITICAL FIX: FORCE CONSENT SCREEN ***
+            // This ensures we get a fresh Refresh Token and full permissions
+            provider.setCustomParameters({
+                prompt: 'consent',
+                access_type: 'offline'
+            });
+            
+            // Add scopes again just to be safe
+            provider.addScope('https://www.googleapis.com/auth/calendar.readonly');
+            provider.addScope('https://www.googleapis.com/auth/tasks.readonly');
+
+            const result = await signInWithPopup(auth, provider);
+            const credential = GoogleAuthProvider.credentialFromResult(result);
+            
+            // Save new token
+            localStorage.setItem('googleCalendarToken', credential.accessToken);
+            
+            // Reload page to re-trigger fetch
+            window.location.reload(); 
+        } catch (e) {
+            console.error("Sync failed:", e);
+            alert("Sync failed: " + e.message);
         }
     }
 
@@ -151,7 +220,6 @@ document.addEventListener('DOMContentLoaded', () => {
         container.innerHTML = '<div style="text-align:center; padding: 20px;"><i class="fa-solid fa-circle-notch fa-spin"></i> Loading Bookmarks...</div>';
         const bms = await getBookmarks();
         bms.sort((a, b) => new Date(a.sortDate) - new Date(b.sortDate));
-        
         if (bms.length === 0) {
             container.innerHTML = '<div style="text-align:center; padding: 40px; color:#888;">No bookmarks yet.</div>';
         } else {
@@ -159,36 +227,60 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // --- API Helpers ---
+    // --- API Helpers (Updated to throw 401) ---
     async function fetchCalendarEvents(token, calendarId, timeMin, colorCategory) {
         try {
             const encodedId = encodeURIComponent(calendarId);
             const response = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodedId}/events?timeMin=${timeMin}&orderBy=startTime&singleEvents=true&maxResults=50`, { headers: { 'Authorization': `Bearer ${token}` } });
+            
+            if (response.status === 401) throw new Error("TOKEN_EXPIRED");
             if (!response.ok) return [];
+            
             const data = await response.json();
             return data.items.map(item => ({ type: 'Event', id: item.id, title: item.summary || "Untitled", description: item.description || "No description provided.", sortDate: item.start.dateTime || item.start.date, isAllDay: !item.start.dateTime, color: colorCategory }));
-        } catch (e) { return []; }
+        } catch (e) { 
+            if (e.message === "TOKEN_EXPIRED") throw e; // Bubble up
+            return []; 
+        }
     }
+
     async function fetchAllTaskLists(token, colorCategory) {
         try {
             const listResponse = await fetch('https://tasks.googleapis.com/tasks/v1/users/@me/lists', { headers: { 'Authorization': `Bearer ${token}` } });
-            if(!listResponse.ok) return [];
+            
+            if (listResponse.status === 401) throw new Error("TOKEN_EXPIRED");
+            if (!listResponse.ok) return [];
+            
             const listData = await listResponse.json();
             if(!listData.items) return [];
+            
             const promises = listData.items.map(list => fetchTasksFromList(token, list.id, colorCategory));
+            // We use Promise.all here because if one list fails with 401, all will likely fail
             const results = await Promise.all(promises);
             return results.flat();
-        } catch (e) { return []; }
+        } catch (e) { 
+            if (e.message === "TOKEN_EXPIRED") throw e;
+            return []; 
+        }
     }
+
     async function fetchTasksFromList(token, listId, colorCategory) {
         try {
             const response = await fetch(`https://tasks.googleapis.com/tasks/v1/lists/${listId}/tasks?showCompleted=false&maxResults=20`, { headers: { 'Authorization': `Bearer ${token}` } });
+            
+            if (response.status === 401) throw new Error("TOKEN_EXPIRED");
             if (!response.ok) return [];
+            
             const data = await response.json();
             if (!data.items) return [];
+            
             return data.items.map(item => ({ type: 'Task', id: item.id, title: item.title || "Untitled", description: item.notes || "No notes.", sortDate: item.due || new Date().toISOString(), isAllDay: true, color: colorCategory }));
-        } catch (e) { return []; }
+        } catch (e) { 
+            if (e.message === "TOKEN_EXPIRED") throw e;
+            return []; 
+        }
     }
+
     async function fetchFirestoreEvents(colorCategory) {
         try {
             const querySnapshot = await getDocs(collection(db, "public_events"));
@@ -223,11 +315,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 const matchesKeyword = keywords.some(key => lowerTitle.includes(key));
                 if (!matchesKeyword) return false;
             }
-            if (currentFilters.keywords.length > 0) {
-                const matchesKeyword = currentFilters.keywords.some(key => lowerTitle.includes(key));
-                if (!matchesKeyword) return false;
-            }
             if (!currentFilters.showTasks && item.type === 'Task') return false;
+            if (currentFilters.status === 'upcoming' && itemDate < now) return false;
+            if (currentFilters.status === 'past' && itemDate >= now) return false;
             if (currentFilters.time !== 'all') {
                 const oneWeek = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
                 const oneMonth = new Date(now); oneMonth.setMonth(now.getMonth() + 1);
@@ -235,6 +325,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (currentFilters.time === 'week' && itemDate > oneWeek) return false;
                 if (currentFilters.time === 'month' && itemDate > oneMonth) return false;
                 if (currentFilters.time === 'year' && itemDate > oneYear) return false;
+            }
+            if (currentFilters.startDate) {
+                const start = new Date(currentFilters.startDate);
+                if (itemDate < start) return false;
+            }
+            if (currentFilters.endDate) {
+                const end = new Date(currentFilters.endDate);
+                end.setHours(23, 59, 59);
+                if (itemDate > end) return false;
             }
             return true;
         });
@@ -247,7 +346,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // --- FILTER UI ---
+    // --- FILTER LISTENERS ---
     if(searchInput) { searchInput.addEventListener('input', (e) => { currentFilters.search = e.target.value.toLowerCase(); applyFilters(); }); }
     document.querySelectorAll('.dropdown-item').forEach(item => {
         item.addEventListener('click', (e) => {
@@ -265,36 +364,21 @@ document.addEventListener('DOMContentLoaded', () => {
         categoryChips.addEventListener('click', (e) => {
             const btn = e.target.closest('button');
             if(!btn || btn.classList.contains('filter-btn')) return;
-            categoryChips.querySelectorAll('.chip:not(.filter-btn)').forEach(c => c.classList.remove('active')); btn.classList.add('active');
+            categoryChips.querySelectorAll('.chip').forEach(c => c.classList.remove('active')); btn.classList.add('active');
             currentFilters.category = btn.dataset.cat;
             currentFilters.categoryKeywords = btn.dataset.keywords ? btn.dataset.keywords.split(',') : [];
-            filterShowTasks.checked = true;
-            filterKeywords.value = "";
-            currentFilters.showTasks = true;
-            currentFilters.keywords = [];
-            openFilterModalBtn.classList.remove('active');
             applyFilters();
         });
     }
     if(openFilterModalBtn) openFilterModalBtn.addEventListener('click', () => { document.getElementById('filter-modal-overlay').classList.add('show'); });
     if(closeFilterBtn) closeFilterBtn.addEventListener('click', () => { document.getElementById('filter-modal-overlay').classList.remove('show'); });
     if(applyFiltersBtn) applyFiltersBtn.addEventListener('click', () => {
-        currentFilters.showTasks = filterShowTasks.checked;
-        currentFilters.keywords = filterKeywords.value.split(',').map(k => k.trim().toLowerCase()).filter(k => k);
-        if (!currentFilters.showTasks || currentFilters.keywords.length > 0) {
-            categoryChips.querySelectorAll('.chip:not(.filter-btn)').forEach(c => c.classList.remove('active'));
-            openFilterModalBtn.classList.add('active');
-        } else {
-            openFilterModalBtn.classList.remove('active');
-            categoryChips.querySelector('[data-cat="all"]').classList.add('active');
-        }
+        currentFilters.showTasks = filterShowTasks.checked; currentFilters.startDate = filterStartDate.value || null; currentFilters.endDate = filterEndDate.value || null; currentFilters.status = filterStatus.value;
         document.getElementById('filter-modal-overlay').classList.remove('show'); applyFilters();
     });
     if(resetFiltersBtn) resetFiltersBtn.addEventListener('click', () => {
-        filterShowTasks.checked = true; filterKeywords.value = "";
-        currentFilters.showTasks = true; currentFilters.keywords = [];
-        openFilterModalBtn.classList.remove('active');
-        categoryChips.querySelector('[data-cat="all"]').classList.add('active');
+        filterShowTasks.checked = true; filterStartDate.value = ""; filterEndDate.value = ""; filterStatus.value = "all";
+        currentFilters.showTasks = true; currentFilters.startDate = null; currentFilters.endDate = null; currentFilters.status = "all";
         document.getElementById('filter-modal-overlay').classList.remove('show'); applyFilters();
     });
 
@@ -306,7 +390,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!targetContainer) return;
         
         if (!items || items.length === 0) {
+            // Keep the reconnect button if it exists
+            const hasReconnect = targetContainer.querySelector('#reSyncBtn');
             targetContainer.innerHTML = '<div style="padding:40px; text-align:center; color:#888;">No events found.</div>';
+            if(hasReconnect) targetContainer.prepend(hasReconnect.parentElement);
             return;
         }
         
@@ -345,23 +432,18 @@ document.addEventListener('DOMContentLoaded', () => {
             const safeLocValue = encodeURIComponent(item.locValue || '');
 
             const activeClass = bookmarkedIds.has(item.id) ? 'active' : '';
-            // Change Icon to Bookmark (fa-bookmark)
             const iconClass = bookmarkedIds.has(item.id) ? 'fa-solid' : 'fa-regular';
             const itemJson = btoa(unescape(encodeURIComponent(JSON.stringify(item))));
 
             html += `
                 <div class="event-card ${borderClass}">
-                    <!-- BOOKMARK BUTTON -->
                     <button class="bookmark-btn ${activeClass}" data-event="${itemJson}" onclick="handleBookmarkClick(this, event)">
                         <i class="${iconClass} fa-bookmark"></i>
                     </button>
-
-                    <!-- CLICKABLE AREA FOR MODAL -->
                     <div class="clickable-area" 
                          data-event="${itemJson}"
                          onclick="handleCardClick(this)"
                          style="cursor:pointer;">
-                        
                         <div class="event-info">
                             <h3>${iconHTML}${item.title}</h3>
                             <p style="font-size: 13px; color: #666; margin-bottom: 4px;">${formattedDate}${formattedTime}</p>
@@ -375,7 +457,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                 </div>`;
         });
+        
+        // Preserve Reconnect Button if it exists
+        const hasReconnect = targetContainer.querySelector('#reSyncBtn');
         targetContainer.innerHTML = html;
+        if(hasReconnect) targetContainer.prepend(hasReconnect.parentElement);
         
         checkReminders(bookmarkedEvents);
     }
@@ -459,6 +545,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function closeModal() { if(modalOverlay) modalOverlay.classList.remove('show'); document.body.classList.remove('modal-open'); if(countdownInterval) clearInterval(countdownInterval); }
     if(closeModalBtn) closeModalBtn.addEventListener('click', closeModal); if(modalOverlay) modalOverlay.addEventListener('click', (e) => { if(e.target === modalOverlay) closeModal(); });
 
+    // Day View Modal Logic
     function openDayModal(eventsForDay, dateString) {
         if(!dayModalOverlay) return;
         dayModalTitle.innerText = dateString; dayEventsList.innerHTML = ""; 
@@ -493,6 +580,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (isCurrentMonth && i === today.getDate()) dayDiv.classList.add('today'); 
             dayDiv.innerHTML = `<span class="day-number">${i}</span>`;
             
+            // --- DRAW LINES using FILTERED DATA ---
             const dayEvents = window.currentFilteredEvents.filter(e => { const eDate = new Date(e.sortDate); return eDate.getDate() === i && eDate.getMonth() === month && eDate.getFullYear() === year; });
             
             if (dayEvents.length > 0) {
@@ -508,6 +596,7 @@ document.addEventListener('DOMContentLoaded', () => {
         for (let i = 1; i <= nextMonthDays; i++) { const dayDiv = document.createElement('div'); dayDiv.classList.add('cal-day', 'other-month'); dayDiv.innerHTML = `<span class="day-number">${i}</span>`; calendarGrid.appendChild(dayDiv); }
     }
 
+    // UI Interactions
     const btnListView = document.getElementById('btnListView');
     if (btnListView) {
         const btnCalendarView = document.getElementById('btnCalendarView');

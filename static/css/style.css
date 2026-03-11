@@ -540,7 +540,7 @@ body.logged-in #home-view {
 .profile-item {
   padding: 10px 15px;
   font-size: 14px;
-  color: #d32f2f; /* Red color for logout */
+  color: #000000;
   cursor: pointer;
   font-weight: 600;
   border-radius: 8px;
@@ -548,6 +548,10 @@ body.logged-in #home-view {
   align-items: center;
   gap: 10px;
   transition: background 0.2s;
+}
+
+#logoutBtn {
+  color: #d32f2f; /* Red color for logout */
 }
 
 .profile-item:hover {
