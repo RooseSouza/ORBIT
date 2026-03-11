@@ -6,7 +6,9 @@
     <title>Orbit Admin CMS</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script type="module" src="/static/js/admin-logic.js"></script>
     
     <style>
@@ -102,6 +104,32 @@
             transform: translateX(-4px);
         }
 
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .btn-logout {
+            background: #ffffff;
+            color: var(--danger-dark);
+            border: 1px solid #fecaca;
+            padding: 10px 16px;
+            border-radius: 50px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 700;
+            display: none;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s ease;
+        }
+
+        .btn-logout:hover {
+            background: var(--danger-light);
+            border-color: #fca5a5;
+        }
+
         /* Auth Cards */
         .auth-card {
             background: var(--card);
@@ -129,6 +157,7 @@
             font-size: 32px;
             background: linear-gradient(135deg, var(--primary), #ec4899);
             -webkit-background-clip: text;
+            background-clip: text;
             -webkit-text-fill-color: transparent;
         }
         
@@ -230,11 +259,13 @@
 
         /* Radio Toggle */
         .radio-wrapper {
-            display: flex;
+            display: inline-flex;
             background: var(--bg);
             padding: 4px;
             border-radius: var(--radius-sm);
             border: 2px solid var(--border);
+            width: fit-content;
+            max-width: 100%;
         }
         
         .radio-wrapper label {
@@ -307,6 +338,28 @@
         
         .btn-danger:hover {
             background: var(--danger-dark);
+        }
+
+        .btn-secondary {
+            background: #ffffff;
+            color: var(--text);
+            padding: 12px 22px;
+            border-radius: 50px;
+            border: 1px solid var(--border);
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: all 0.2s ease;
+        }
+
+        .btn-secondary:hover {
+            background: var(--bg);
+            border-color: #cbd5e1;
         }
 
         /* Events Header */
@@ -703,6 +756,12 @@
                 gap: 16px;
                 text-align: center;
             }
+
+            .header-actions {
+                width: 100%;
+                justify-content: center;
+                flex-wrap: wrap;
+            }
             
             .form-grid {
                 grid-template-columns: 1fr;
@@ -743,9 +802,14 @@
                 <img src="/static/images/Orbitlogo.png" alt="Orbit Logo">
                 <h1>Admin Panel</h1>
             </div>
-            <a href="/home" class="back-link">
-                <i class="fa-solid fa-arrow-left"></i> Back to App
-            </a>
+            <div class="header-actions">
+                <a href="/home" class="back-link" id="adminBackLink">
+                    <i class="fa-solid fa-arrow-left"></i> Back to App
+                </a>
+                <button id="adminLogoutBtn" class="btn-logout" type="button">
+                    <i class="fa-solid fa-right-from-bracket"></i> Log Out
+                </button>
+            </div>
         </div>
 
         <!-- 1. WARNING STATE -->
@@ -758,7 +822,7 @@
                         <span style="font-size:13px;">You're signed in but not authorized as an Administrator.</span>
                     </div>
                 </div>
-                <button id="adminLogoutBtn" class="btn-danger">
+                <button id="warningLogoutBtn" class="btn-danger">
                     <i class="fa-solid fa-right-from-bracket"></i> Log Out
                 </button>
             </div>
@@ -775,6 +839,9 @@
                 <button id="adminLoginBtn" class="btn-primary" style="width:100%; justify-content:center;">
                     <i class="fa-brands fa-google"></i> Sign in with Google
                 </button>
+                <a href="/" class="btn-secondary" style="width:100%; margin-top:10px;">
+                    <i class="fa-solid fa-arrow-left"></i> Back to Login
+                </a>
             </div>
         </div>
 
@@ -800,7 +867,10 @@
 
                     <div class="form-group">
                         <label>Date & Time</label>
-                        <input type="datetime-local" id="evtDate">
+                        <input type="text" id="evtDate" placeholder="Select date and time">
+                        <small class="helper-text">
+                            <i class="fa-regular fa-clock"></i> Choose a future time for best visibility.
+                        </small>
                     </div>
 
                     <div class="form-group">

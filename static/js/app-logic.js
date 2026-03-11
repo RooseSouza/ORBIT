@@ -10,9 +10,13 @@ window.currentFilteredEvents = [];
 // --- FILTER STATE ---
 let currentFilters = {
     search: "",
-    source: "all", time: "all", category: "all", categoryKeywords: [], 
-    showTasks: true, startDate: null, endDate: null, status: "all"
+    source: "all", time: "all", category: "all", categoryKeywords: [],
+    showTasks: true, keywords: [], startDate: null, endDate: null,
+    eventType: "all", locationType: "all", sortBy: "soonest"
 };
+
+let isGuestSession = localStorage.getItem('isOrbitGuest') === 'true';
+let isLogoutTransition = false;
 
 document.addEventListener('DOMContentLoaded', () => {
     
@@ -39,9 +43,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const applyFiltersBtn = document.getElementById('apply-filters-btn');
     const resetFiltersBtn = document.getElementById('reset-filters-btn');
     const filterShowTasks = document.getElementById('filter-show-tasks');
+    const filterKeywords = document.getElementById('filter-keywords');
     const filterStartDate = document.getElementById('filter-start-date');
     const filterEndDate = document.getElementById('filter-end-date');
-    const filterStatus = document.getElementById('filter-status');
+    const filterEventType = document.getElementById('filter-event-type');
+    const filterLocationType = document.getElementById('filter-location-type');
+    const filterSortBy = document.getElementById('filter-sort-by');
     const modalOverlay = document.getElementById('event-modal-overlay');
     const closeModalBtn = document.getElementById('close-modal-btn-inner');
     const modalTitle = document.getElementById('modal-title');
@@ -61,15 +68,57 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentYear = new Date().getFullYear();
     const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
+    function applyGuestModeUI() {
+        const guestCardId = 'guest-access-card';
+        const existingCard = document.getElementById(guestCardId);
+        const homeView = document.getElementById('home-view');
+
+        if (isGuestSession) {
+            if (navIcon) navIcon.style.display = 'none';
+            if (sideMenu) sideMenu.style.display = 'none';
+            if (sideMenuOverlay) sideMenuOverlay.style.display = 'none';
+
+            // Guests should not access bookmarks-only view.
+            if (window.location.pathname === '/bookmarks') {
+                window.location.href = '/home';
+                return;
+            }
+
+            if (!existingCard && homeView) {
+                const guestCard = document.createElement('div');
+                guestCard.id = guestCardId;
+                guestCard.className = 'guest-access-card';
+                guestCard.innerHTML = `
+                    <div class="guest-access-title"><i class="fa-regular fa-user"></i> You are using Guest Mode</div>
+                    <div class="guest-access-text">Log in with your account for full access, including bookmarks and personalized menus.</div>
+                    <a class="guest-access-link" href="/">Log in to unlock full access</a>
+                `;
+                homeView.insertBefore(guestCard, homeView.firstChild);
+            }
+        } else {
+            if (navIcon) navIcon.style.display = '';
+            if (sideMenu) sideMenu.style.display = '';
+            if (sideMenuOverlay) sideMenuOverlay.style.display = '';
+            if (existingCard) existingCard.remove();
+        }
+    }
+
 
     // ==========================================
     // 1. AUTH CHECK & PAGE ROUTING
     // ==========================================
     onAuthStateChanged(auth, (user) => {
+        if (isLogoutTransition) {
+            return;
+        }
+
         const isGuest = localStorage.getItem('isOrbitGuest') === 'true';
+        isGuestSession = !user && isGuest;
         if (!user && !isGuest) {
             window.location.href = '/';
         } else {
+            applyGuestModeUI();
+
             if (user && user.photoURL) {
                 navProfile.style.backgroundImage = `url('${user.photoURL}')`;
                 navProfile.style.border = "2px solid white";
@@ -315,9 +364,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 const matchesKeyword = keywords.some(key => lowerTitle.includes(key));
                 if (!matchesKeyword) return false;
             }
+            if (currentFilters.keywords.length > 0) {
+                const matchesAllKeywords = currentFilters.keywords.every(key => lowerTitle.includes(key));
+                if (!matchesAllKeywords) return false;
+            }
             if (!currentFilters.showTasks && item.type === 'Task') return false;
-            if (currentFilters.status === 'upcoming' && itemDate < now) return false;
-            if (currentFilters.status === 'past' && itemDate >= now) return false;
+            if (currentFilters.eventType === 'event' && item.type !== 'Event') return false;
+            if (currentFilters.eventType === 'task' && item.type !== 'Task') return false;
+            if (currentFilters.eventType === 'public' && item.type !== 'Public') return false;
+            if (currentFilters.locationType !== 'all') {
+                const locType = item.locType || 'text';
+                if (locType !== currentFilters.locationType) return false;
+            }
             if (currentFilters.time !== 'all') {
                 const oneWeek = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
                 const oneMonth = new Date(now); oneMonth.setMonth(now.getMonth() + 1);
@@ -337,6 +395,16 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             return true;
         });
+
+        if (currentFilters.sortBy === 'latest') {
+            filtered.sort((a, b) => new Date(b.sortDate) - new Date(a.sortDate));
+        } else if (currentFilters.sortBy === 'name_asc') {
+            filtered.sort((a, b) => (a.title || '').localeCompare(b.title || ''));
+        } else if (currentFilters.sortBy === 'name_desc') {
+            filtered.sort((a, b) => (b.title || '').localeCompare(a.title || ''));
+        } else {
+            filtered.sort((a, b) => new Date(a.sortDate) - new Date(b.sortDate));
+        }
 
         window.currentFilteredEvents = filtered;
         renderMixedItems(filtered, eventsContainer);
@@ -367,18 +435,70 @@ document.addEventListener('DOMContentLoaded', () => {
             categoryChips.querySelectorAll('.chip').forEach(c => c.classList.remove('active')); btn.classList.add('active');
             currentFilters.category = btn.dataset.cat;
             currentFilters.categoryKeywords = btn.dataset.keywords ? btn.dataset.keywords.split(',') : [];
+            if (filterKeywords) filterKeywords.value = "";
+            if (filterStartDate) filterStartDate.value = "";
+            if (filterEndDate) filterEndDate.value = "";
+            if (filterEventType) filterEventType.value = "all";
+            if (filterLocationType) filterLocationType.value = "all";
+            if (filterSortBy) filterSortBy.value = "soonest";
+            if (openFilterModalBtn) openFilterModalBtn.classList.remove('active');
+            currentFilters.keywords = [];
+            currentFilters.startDate = null;
+            currentFilters.endDate = null;
+            currentFilters.eventType = "all";
+            currentFilters.locationType = "all";
+            currentFilters.sortBy = "soonest";
             applyFilters();
         });
     }
     if(openFilterModalBtn) openFilterModalBtn.addEventListener('click', () => { document.getElementById('filter-modal-overlay').classList.add('show'); });
     if(closeFilterBtn) closeFilterBtn.addEventListener('click', () => { document.getElementById('filter-modal-overlay').classList.remove('show'); });
     if(applyFiltersBtn) applyFiltersBtn.addEventListener('click', () => {
-        currentFilters.showTasks = filterShowTasks.checked; currentFilters.startDate = filterStartDate.value || null; currentFilters.endDate = filterEndDate.value || null; currentFilters.status = filterStatus.value;
+        currentFilters.showTasks = filterShowTasks ? filterShowTasks.checked : true;
+        currentFilters.keywords = filterKeywords ? filterKeywords.value.split(',').map(k => k.trim().toLowerCase()).filter(Boolean) : [];
+        currentFilters.startDate = filterStartDate && filterStartDate.value ? filterStartDate.value : null;
+        currentFilters.endDate = filterEndDate && filterEndDate.value ? filterEndDate.value : null;
+        currentFilters.eventType = filterEventType ? filterEventType.value : 'all';
+        currentFilters.locationType = filterLocationType ? filterLocationType.value : 'all';
+        currentFilters.sortBy = filterSortBy ? filterSortBy.value : 'soonest';
+
+        const hasCustom =
+            currentFilters.keywords.length > 0 ||
+            !!currentFilters.startDate ||
+            !!currentFilters.endDate ||
+            currentFilters.eventType !== 'all' ||
+            currentFilters.locationType !== 'all' ||
+            currentFilters.sortBy !== 'soonest' ||
+            !currentFilters.showTasks;
+
+        if (openFilterModalBtn) openFilterModalBtn.classList.toggle('active', hasCustom);
         document.getElementById('filter-modal-overlay').classList.remove('show'); applyFilters();
     });
     if(resetFiltersBtn) resetFiltersBtn.addEventListener('click', () => {
-        filterShowTasks.checked = true; filterStartDate.value = ""; filterEndDate.value = ""; filterStatus.value = "all";
-        currentFilters.showTasks = true; currentFilters.startDate = null; currentFilters.endDate = null; currentFilters.status = "all";
+        if (filterShowTasks) filterShowTasks.checked = true;
+        if (filterKeywords) filterKeywords.value = "";
+        if (filterStartDate) filterStartDate.value = "";
+        if (filterEndDate) filterEndDate.value = "";
+        if (filterEventType) filterEventType.value = "all";
+        if (filterLocationType) filterLocationType.value = "all";
+        if (filterSortBy) filterSortBy.value = "soonest";
+
+        currentFilters.showTasks = true;
+        currentFilters.keywords = [];
+        currentFilters.startDate = null;
+        currentFilters.endDate = null;
+        currentFilters.eventType = 'all';
+        currentFilters.locationType = 'all';
+        currentFilters.sortBy = 'soonest';
+
+        if (categoryChips) {
+            categoryChips.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+            const allBtn = categoryChips.querySelector('[data-cat="all"]');
+            if (allBtn) allBtn.classList.add('active');
+        }
+        currentFilters.category = 'all';
+        currentFilters.categoryKeywords = [];
+        if (openFilterModalBtn) openFilterModalBtn.classList.remove('active');
         document.getElementById('filter-modal-overlay').classList.remove('show'); applyFilters();
     });
 
@@ -397,7 +517,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         
-        const bookmarkedEvents = await getBookmarks();
+        const bookmarkedEvents = isGuestSession ? [] : await getBookmarks();
         const bookmarkedIds = new Set(bookmarkedEvents.map(b => b.id));
 
         let html = '';
@@ -435,11 +555,15 @@ document.addEventListener('DOMContentLoaded', () => {
             const iconClass = bookmarkedIds.has(item.id) ? 'fa-solid' : 'fa-regular';
             const itemJson = btoa(unescape(encodeURIComponent(JSON.stringify(item))));
 
+            const bookmarkButtonHtml = isGuestSession
+                ? ''
+                : `<button class="bookmark-btn ${activeClass}" data-event="${itemJson}" onclick="handleBookmarkClick(this, event)">
+                        <i class="${iconClass} fa-bookmark"></i>
+                   </button>`;
+
             html += `
                 <div class="event-card ${borderClass}">
-                    <button class="bookmark-btn ${activeClass}" data-event="${itemJson}" onclick="handleBookmarkClick(this, event)">
-                        <i class="${iconClass} fa-bookmark"></i>
-                    </button>
+                    ${bookmarkButtonHtml}
                     <div class="clickable-area" 
                          data-event="${itemJson}"
                          onclick="handleCardClick(this)"
@@ -468,6 +592,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- CLICK HANDLERS ---
     window.handleBookmarkClick = async function(btn, e) {
+        if (isGuestSession) return;
         e.stopPropagation(); 
         const item = JSON.parse(decodeURIComponent(escape(atob(btn.dataset.event))));
         const isAdded = await toggleBookmark(item);
@@ -644,7 +769,23 @@ document.addEventListener('DOMContentLoaded', () => {
         if (nextMonthBtn) nextMonthBtn.addEventListener('click', () => { currentMonth++; if (currentMonth > 11) { currentMonth = 0; currentYear++; calYearSelect.value = currentYear; } calMonthSelect.value = currentMonth; renderCalendar(currentMonth, currentYear); });
     }
 
-    if(logoutBtn) logoutBtn.addEventListener('click', (e) => { e.stopPropagation(); localStorage.removeItem('isOrbitGuest'); localStorage.removeItem('googleCalendarToken'); signOut(auth).then(() => { window.location.href = '/'; }); });
+    if(logoutBtn) logoutBtn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        localStorage.removeItem('isOrbitGuest');
+        localStorage.removeItem('googleCalendarToken');
+        isLogoutTransition = true;
+        try {
+            await signOut(auth);
+        } catch (_) {
+            // Continue with visual logout transition even if signOut throws.
+        }
+
+        document.body.classList.remove('logged-in');
+        if (profileMenu) profileMenu.classList.remove('show');
+        setTimeout(() => {
+            window.location.href = '/';
+        }, 800);
+    });
     if(profileBtn) profileBtn.addEventListener('click', (e) => { e.stopPropagation(); profileMenu.classList.toggle('show'); });
     if(navIcon) navIcon.addEventListener('click', (e) => { e.stopPropagation(); sideMenu.classList.add('show'); sideMenuOverlay.classList.add('show'); });
     const closeSideMenuFn = () => { sideMenu.classList.remove('show'); sideMenuOverlay.classList.remove('show'); }

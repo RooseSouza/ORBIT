@@ -43,26 +43,21 @@
         </div>
     </div>
 
-    <!-- ... Legend ... -->
+    <div class="legend" aria-label="Event color legend">
+        <div class="legend-item">
+            <span class="dot green"></span>
+            <span>Your Events</span>
+        </div>
+        <div class="legend-item">
+            <span class="dot blue"></span>
+            <span>Public Events</span>
+        </div>
+    </div>
 
     <div class="main-grid">
         <div class="content-area">
 
             <div id="listViewContent">
-                <!-- Add ID to container -->
-                <div class="filters-row" id="categoryChips">
-                    <button class="chip active" data-cat="all">All Categories</button>
-                    <!-- Added data-keywords to simulate smart categorization -->
-                    <button class="chip" data-cat="sports"
-                        data-keywords="match,game,sport,football,soccer,gym,tennis,basketball,baseball,hockey,olympic,tournament,league,cup,race,marathon,workout,fitness,athletic,swimming,cycling,running,boxing,wrestling,golf">Sports</button>
-                    <button class="chip" data-cat="music" data-keywords="concert,music,song,band,live,dj,performance,gig,show,tour,album,artist,singer,orchestra,jazz,rock,pop,classical,festival,opera,symphony,choir,rap,hip-hop,electronic,dance">Music</button>
-                    <button class="chip" data-cat="festivals"
-                        data-keywords="festival,party,gala,fair,fest,event,celebration,carnival,expo,exhibition,conference,summit,convention,trade show,cultural,food,beer,wine,art,film,theater,book,comic,anime,gaming,tech,technology,education,business,networking,charity,volunteer,religious,spiritual,holiday,seasonal">Festivals</button>
-
-                    <!-- Filter Button -->
-                    <button class="chip filter-btn" id="openFilterModalBtn"><i class="fa-solid fa-sliders"></i>
-                        Filters</button>
-                </div>
 
                 <!-- THIS IS WHERE THE JS INJECTS CARDS -->
                 <div class="events-list" id="dynamic-events-container">
@@ -101,10 +96,24 @@
 
         </div>
 
-        <div class="sidebar">
-            <div class="sidebar-block"></div>
-            <div class="sidebar-block"></div>
-        </div>
+        <aside class="filter-sidebar">
+            <p class="filter-sidebar-heading">Categories</p>
+            <div id="categoryChips">
+                <button class="chip active" data-cat="all">All Categories</button>
+                <button class="chip" data-cat="sports"
+                    data-keywords="match,game,sport,football,soccer,gym,tennis,basketball,baseball,hockey,olympic,tournament,league,cup,race,marathon,workout,fitness,athletic,swimming,cycling,running,boxing,wrestling,golf">Sports</button>
+                <button class="chip" data-cat="music"
+                    data-keywords="concert,music,song,band,live,dj,performance,gig,show,tour,album,artist,singer,orchestra,jazz,rock,pop,classical,festival,opera,symphony,choir,rap,hip-hop,electronic,dance">Music</button>
+                <button class="chip" data-cat="festivals"
+                    data-keywords="festival,party,gala,fair,fest,event,celebration,carnival,expo,exhibition,conference,summit,convention,trade show,cultural,food,beer,wine,art,film,theater,book,comic,anime,gaming,tech,technology,education,business,networking,charity,volunteer,religious,spiritual,holiday,seasonal">Festivals</button>
+            </div>
+
+            <hr class="filter-sidebar-divider">
+
+            <button class="chip filter-btn" id="openFilterModalBtn" type="button">
+                <i class="fa-solid fa-star"></i> Advanced Filters
+            </button>
+        </aside>
     </div>
 
 </div>

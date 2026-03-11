@@ -21,9 +21,7 @@ app.config['MAIL_USE_SSL'] = True
 mail = Mail(app)
 
 # --- Firebase Admin Setup ---
-# Supports either:
-# 1) Service account values from .env (FIREBASE_* vars)
-# 2) A credentials file path via GOOGLE_APPLICATION_CREDENTIALS
+# Uses service account values from environment variables (FIREBASE_* vars).
 _db = None
 try:
     import firebase_admin
@@ -55,8 +53,11 @@ try:
         service_account["private_key"] = private_key
         cred = credentials.Certificate(service_account)
     else:
-        cred_path = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS', 'serviceAccountKey.json')
-        cred = credentials.Certificate(cred_path)
+        missing_fields = [
+            key for key, value in service_account.items()
+            if key in {"type", "project_id", "private_key_id", "private_key", "client_email", "client_id"} and not value
+        ]
+        raise RuntimeError("Missing Firebase env vars: " + ", ".join(missing_fields))
 
     firebase_admin.initialize_app(cred)
     _db = fs_admin.client()
@@ -134,7 +135,10 @@ def _check_api_key():
 def _require_db():
     """Returns None if db ready, else a 503 response tuple."""
     if _db is None:
-        return jsonify({"success": False, "error": "Server Firebase not configured. Add serviceAccountKey.json and restart."}), 503
+        return jsonify({
+            "success": False,
+            "error": "Server Firebase not configured. Set FIREBASE_* environment variables and restart."
+        }), 503
     return None
 
 
