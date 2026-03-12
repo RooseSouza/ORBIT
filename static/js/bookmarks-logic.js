@@ -1,6 +1,7 @@
 import { getFirestore, doc, setDoc, getDoc, updateDoc, arrayUnion, arrayRemove } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 import { auth, app } from "/static/js/firebase-config.js";
 
+
 const db = getFirestore(app);
 
 // --- TOGGLE BOOKMARK ---
@@ -81,4 +82,22 @@ export async function getBookmarks() {
 export async function isBookmarked(eventId) {
     const list = await getBookmarks();
     return list.some(b => b.id === eventId);
+}
+
+// --- UPDATE REMINDER TIME FOR A BOOKMARK ---
+export async function updateBookmarkReminder(eventId, reminderMinutes) {
+    const user = auth.currentUser;
+    if (user) {
+        const userRef = doc(db, "users", user.uid);
+        const docSnap = await getDoc(userRef);
+        if (!docSnap.exists()) return;
+        const updated = (docSnap.data().bookmarks || []).map(b =>
+            b.id === eventId ? { ...b, reminderMinutes } : b
+        );
+        await updateDoc(userRef, { bookmarks: updated });
+    } else {
+        let bookmarks = JSON.parse(localStorage.getItem("orbitGuestBookmarks") || "[]");
+        bookmarks = bookmarks.map(b => b.id === eventId ? { ...b, reminderMinutes } : b);
+        localStorage.setItem("orbitGuestBookmarks", JSON.stringify(bookmarks));
+    }
 }

@@ -348,6 +348,177 @@ body:not(.logged-in) #app-preloader {
   transform: translateX(-50%) translateY(-8px);
 }
 
+  /* ===================================================
+     DARK MODE
+  =================================================== */
+  html.dark body { background-color: #0d0f18; color: #dde4f0; }
+  html.dark #dynamic-bg { background: linear-gradient(90deg, #7b2d8b 0%, #1a4a9e 100%); }
+  html.dark #side-menu { background: #13162a; }
+  html.dark .menu-header { border-bottom-color: #252840; }
+  html.dark .menu-header h2 { color: #eef2ff; }
+  html.dark .menu-item { color: #c8d0e7; }
+  html.dark .menu-item:hover { background-color: #1e2238; }
+  html.dark .menu-item.active { background-color: #1e2a50; color: #7db4ff; }
+  html.dark #close-menu-btn { color: #9ba8cb; }
+  html.dark .event-card { background: #1a1d2e; border-color: #2d3350 !important; }
+  html.dark .event-info h3 { color: #eef2ff; }
+  html.dark .event-info p { color: #8a96b8; }
+  html.dark .countdown-box { background: #1a1d2e; border-color: #3a4068; }
+  html.dark .time-num { color: #7db4ff; }
+  html.dark .time-label { color: #8a96b8; }
+  html.dark .divider { color: #3a4068; }
+  html.dark .modal-card { background: #1a1d2e; color: #eef2ff; }
+  html.dark #modal-title { color: #eef2ff; }
+  html.dark #modal-meta { color: #8a96b8; }
+  html.dark #modal-date { color: #8a96b8; }
+  html.dark #modal-desc { color: #8a96b8; }
+  html.dark .modal-countdown-wrapper p { color: #8a96b8; }
+  html.dark .live-num { color: #7db4ff; }
+  html.dark .live-label { color: #8a96b8; }
+  html.dark .live-sep { color: #3a4068; }
+  html.dark #close-modal-btn-inner { color: #8a96b8; }
+  html.dark .profile-menu { background: #1a1d2e; border-color: #2d3350; }
+  html.dark .profile-item { color: #c8d0e7; }
+  html.dark #logoutBtn { color: #f87171; }
+  html.dark .profile-item:hover { background-color: #1e2238; }
+  html.dark .dropdown-btn { background: #1a1d2e; border-color: #2d3350; color: #c8d0e7; }
+  html.dark .dropdown-btn:hover { border-color: #4a577a; }
+  html.dark .dropdown-menu { background: #1a1d2e; border-color: #2d3350; }
+  html.dark .dropdown-item { color: #c8d0e7; }
+  html.dark .dropdown-item:hover { background-color: #1e2238; color: #7db4ff; }
+  html.dark .search-bar input { background: #1a1d2e; border-color: #2d3350; color: #dde4f0; }
+  html.dark .search-bar input::placeholder { color: #5a6585; }
+  html.dark .chip { background: #1a1d2e; color: #c8d0e7; border-color: #2d3350; }
+  html.dark .chip.active { background: linear-gradient(135deg, #2554a8, #1e3f8a); color: #fff; border-color: transparent; }
+  html.dark .calendar-card { background: #1a1d2e; border-color: #2d3350; }
+  html.dark .cal-weekdays { color: #5a6585; border-bottom-color: #2d3350; }
+  html.dark .cal-day { background: #1a1d2e; border-color: #2d3350; color: #c8d0e7; }
+  html.dark .cal-day.other-month { color: #2d3350; background-color: #13162a; }
+  html.dark .cal-day.today { background-color: #1a2745; }
+  html.dark .cal-day:hover { background-color: #1e2238; }
+  html.dark .cal-grid { border-color: #2d3350; }
+  html.dark .cal-select { background: #1a1d2e; border-color: #2d3350; color: #c8d0e7; }
+  html.dark .cal-nav-btn { color: #c8d0e7; }
+  html.dark .page-title { color: #eef2ff; }
+  html.dark .view-toggle { background: #1a1d2e; border-color: #2d3350; }
+  html.dark .toggle-btn { color: #8a96b8; }
+  html.dark .filter-sidebar { background: #13162a; }
+  html.dark .filter-sidebar-heading { color: #5a6585; }
+  html.dark .filter-sidebar-divider { border-color: #252840; }
+  html.dark .day-event-item { background: #1a1d2e; border-color: #2d3350; }
+  html.dark .day-event-item h4 { color: #eef2ff; }
+  html.dark .day-event-item p { color: #8a96b8; }
+  html.dark .guest-access-card { background: #131d38; border-color: #2d3a5e; }
+  html.dark .guest-access-title { color: #93c5fd; }
+  html.dark .guest-access-text { color: #6d87b5; }
+  html.dark .modal-overlay { background: rgba(0,0,0,0.75); }
+
+  /* ===================================================
+     ADD TO GOOGLE CALENDAR BUTTON
+  =================================================== */
+  .gcal-add-btn {
+    display: inline-flex;
+    align-items: center;
+    padding: 10px 22px;
+    background: #fff;
+    border: 1px solid #dadce0;
+    border-radius: 24px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #3c4043;
+    text-decoration: none;
+    transition: background 0.2s ease, box-shadow 0.2s ease;
+  }
+  .gcal-add-btn:hover {
+    background: #f6f8ff;
+    box-shadow: 0 2px 8px rgba(66,133,244,0.18);
+  }
+  html.dark .gcal-add-btn {
+    background: #1e2238;
+    border-color: #3a4068;
+    color: #c8d0e7;
+  }
+  html.dark .gcal-add-btn:hover { background: #252840; }
+
+  /* ===================================================
+     REMINDER PICKER TOAST
+  =================================================== */
+  .reminder-toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: white;
+    border: 1px solid #e0e7ef;
+    border-radius: 16px;
+    padding: 18px;
+    width: 290px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.14);
+    z-index: 9500;
+    opacity: 0;
+    transform: translateY(14px);
+    transition: opacity 0.28s ease, transform 0.28s ease;
+  }
+  .reminder-toast.show { opacity: 1; transform: translateY(0); }
+  .reminder-toast-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: #569aff;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .reminder-toast-event {
+    font-size: 13px;
+    color: #555;
+    margin-bottom: 12px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .reminder-select {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid #cdd5e0;
+    border-radius: 8px;
+    font-size: 13px;
+    font-family: 'Inter', sans-serif;
+    margin-bottom: 12px;
+    background: white;
+    color: #2a3647;
+  }
+  .reminder-toast-actions { display: flex; gap: 8px; }
+  .reminder-btn-save {
+    flex: 1;
+    padding: 8px;
+    background: #569aff;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .reminder-btn-save:hover { background: #3b82f6; }
+  .reminder-btn-skip {
+    flex: 1;
+    padding: 8px;
+    background: #f0f4f8;
+    color: #555;
+    border: none;
+    border-radius: 8px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .reminder-btn-skip:hover { background: #e2e8f0; }
+  html.dark .reminder-toast { background: #1a1d2e; border-color: #2d3350; }
+  html.dark .reminder-toast-event { color: #8a96b8; }
+  html.dark .reminder-select { background: #13162a; border-color: #2d3350; color: #c8d0e7; }
+  html.dark .reminder-btn-skip { background: #252840; color: #8a96b8; }
+  html.dark .reminder-btn-skip:hover { background: #1e2238; }
+
 .view-toggle-container {
   display: flex;
   justify-content: center;
