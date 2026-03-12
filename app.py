@@ -10,6 +10,12 @@ load_dotenv()
 app = Flask(__name__)
 CORS(app, resources={r"/api/*": {"origins": "*"}})
 
+
+@app.route('/ping', methods=['GET', 'HEAD'])
+def ping():
+    """Lightweight keep-alive endpoint used by the frontend AFK pinger."""
+    return '', 204
+
 app.config['MAIL_SERVER'] = 'smtp.gmail.com'
 app.config['MAIL_PORT'] = 465
 app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME') 
@@ -102,11 +108,18 @@ def send_reminder():
                   sender=app.config['MAIL_USERNAME'],
                   recipients=[email])
     
+    if days == 0:
+        time_str = f"{hours} hour(s)"
+    elif hours == 0:
+        time_str = f"{days} day(s)"
+    else:
+        time_str = f"{days} day(s) and {hours} hour(s)"
+
     msg.body = f"""Hello,
 
 This is a reminder that '{event_title}' is starting soon!
 
-Time Remaining: {days} Days and {hours} Hours.
+Time Remaining: {time_str}.
 
 See you there!
 - The Orbit Team
@@ -216,4 +229,6 @@ def api_get_events():
     return jsonify(events)
 
 
-app = app
+if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port, debug=True)

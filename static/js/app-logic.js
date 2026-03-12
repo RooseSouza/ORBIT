@@ -1,7 +1,7 @@
 import { signOut, onAuthStateChanged, signInWithPopup, GoogleAuthProvider } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import { getFirestore, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 import { auth, provider, app } from "/static/js/firebase-config.js";
-import { toggleBookmark, getBookmarks, isBookmarked } from "/static/js/bookmarks-logic.js";
+import { toggleBookmark, getBookmarks, isBookmarked, updateBookmarkReminder } from "/static/js/bookmarks-logic.js";
 
 // --- DATA STORES ---
 window.globalEventsStore = [];      
@@ -21,6 +21,11 @@ let isLogoutTransition = false;
 document.addEventListener('DOMContentLoaded', () => {
     
     const db = getFirestore(app);
+
+    // Dark mode: apply from localStorage immediately
+    if (localStorage.getItem('orbitTheme') === 'dark') {
+        document.documentElement.classList.add('dark');
+    }
 
     // UI Refs
     const preloader = document.getElementById('app-preloader');
@@ -603,6 +608,7 @@ document.addEventListener('DOMContentLoaded', () => {
             btn.classList.remove('active'); icon.classList.add('fa-regular'); icon.classList.remove('fa-solid');
             if (window.location.pathname === '/bookmarks') btn.closest('.event-card').remove();
         }
+        showReminderPicker(item, isAdded);
     };
 
     window.handleCardClick = function(div) {
@@ -619,23 +625,52 @@ document.addEventListener('DOMContentLoaded', () => {
     function checkReminders(bookmarkedEvents) {
         const user = auth.currentUser;
         if (!user || !user.email) return;
-        const sentReminders = JSON.parse(localStorage.getItem("sentReminders") || "[]");
+        const sent24h = JSON.parse(localStorage.getItem("sentReminders") || "[]");
+        const sentCustom = JSON.parse(localStorage.getItem("sentReminders_custom") || "{}");
+
         bookmarkedEvents.forEach(item => {
             const now = new Date();
             const start = new Date(item.sortDate);
             const diffMs = start - now;
             const hoursLeft = diffMs / (1000 * 60 * 60);
-            
-            if (hoursLeft > 24 && hoursLeft < 26) {
-                if (!sentReminders.includes(item.id)) {
-                    fetch('/send-reminder', {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({ email: user.email, title: item.title, days: 1, hours: 1 })
+
+            // Always: 24-hour email reminder
+            if (hoursLeft > 23 && hoursLeft < 25 && !sent24h.includes(item.id)) {
+                fetch('/send-reminder', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: user.email, title: item.title, days: 1, hours: 0 })
+                });
+                sent24h.push(item.id);
+                localStorage.setItem("sentReminders", JSON.stringify(sent24h));
+            }
+
+            // Custom reminder (default 60 min; 0 = opted out)
+            const reminderMinutes = (item.reminderMinutes != null) ? item.reminderMinutes : 60;
+            if (reminderMinutes === 0) return;
+            const reminderHours = reminderMinutes / 60;
+            const remKey = `${item.id}_${reminderMinutes}`;
+            if (hoursLeft > Math.max(0, reminderHours - 1) && hoursLeft < reminderHours + 1 && !sentCustom[remKey]) {
+                const remDays = Math.floor(reminderMinutes / (60 * 24));
+                const remHoursVal = Math.floor((reminderMinutes % (60 * 24)) / 60);
+                fetch('/send-reminder', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: user.email, title: item.title, days: remDays, hours: remHoursVal })
+                });
+                if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+                    const timeLabel = reminderMinutes < 60
+                        ? `${reminderMinutes} minutes`
+                        : reminderMinutes < 1440
+                            ? `${Math.round(reminderMinutes / 60)} hour(s)`
+                            : `${Math.round(reminderMinutes / 1440)} day(s)`;
+                    new Notification(`Upcoming: ${item.title}`, {
+                        body: `Starting in ${timeLabel}`,
+                        icon: '/static/images/Orbitlogo.png'
                     });
-                    sentReminders.push(item.id);
-                    localStorage.setItem("sentReminders", JSON.stringify(sentReminders));
                 }
+                sentCustom[remKey] = true;
+                localStorage.setItem("sentReminders_custom", JSON.stringify(sentCustom));
             }
         });
     }
@@ -648,7 +683,7 @@ document.addEventListener('DOMContentLoaded', () => {
         modalDate.innerText = decodeURIComponent(dateStr);
         const locContainer = document.getElementById('modal-location-container');
         if (locContainer) {
-            locContainer.innerHTML = ""; 
+            locContainer.innerHTML = "";
             const dLocValue = decodeURIComponent(locValue);
             const dLocType = decodeURIComponent(locType);
             if (dLocType === 'map' && dLocValue && dLocValue !== 'undefined') {
@@ -656,6 +691,13 @@ document.addEventListener('DOMContentLoaded', () => {
             } else if (dLocValue && dLocValue !== 'undefined' && dLocValue !== "") {
                 locContainer.innerHTML = `<div style="background:#f5f5f5; padding:15px; border-radius:12px; font-size:14px; display:flex; align-items:center; gap:10px;"><i class="fa-solid fa-location-dot" style="color:#569aff; font-size:18px;"></i><span>${dLocValue}</span></div>`;
             }
+        }
+        const gcalBtn = document.getElementById('add-to-gcal-btn');
+        if (gcalBtn && rawIsoDate) {
+            const startDt = new Date(rawIsoDate);
+            const endDt = new Date(startDt.getTime() + 60 * 60 * 1000);
+            const fmt = d => d.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+            gcalBtn.href = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(decodeURIComponent(title))}&dates=${fmt(startDt)}/${fmt(endDt)}&details=${encodeURIComponent(decodeURIComponent(desc))}&location=${encodeURIComponent(decodeURIComponent(locValue))}`;
         }
         modalOverlay.classList.add('show');
         document.body.classList.add('modal-open');
@@ -792,4 +834,83 @@ document.addEventListener('DOMContentLoaded', () => {
     if(closeMenuBtn) closeMenuBtn.addEventListener('click', closeSideMenuFn); if(sideMenuOverlay) sideMenuOverlay.addEventListener('click', closeSideMenuFn);
     document.querySelectorAll('.dropdown-btn').forEach(btn => { btn.addEventListener('click', (e) => { e.stopPropagation(); document.querySelectorAll('.dropdown-menu.show').forEach(m => { if(m !== btn.nextElementSibling) { m.classList.remove('show'); m.previousElementSibling.classList.remove('active'); }}); const menu = btn.nextElementSibling; btn.classList.toggle('active'); menu.classList.toggle('show'); }); });
     document.addEventListener('click', () => { if(profileMenu) profileMenu.classList.remove('show'); document.querySelectorAll('.dropdown-menu').forEach(m => { m.classList.remove('show'); m.previousElementSibling.classList.remove('active'); }); });
+
+    // --- REMINDER PICKER TOAST ---
+    function showReminderPicker(item, isAdded) {
+        if (!isAdded) return;
+        const existing = document.getElementById('reminder-picker-toast');
+        if (existing) existing.remove();
+        const cur = (item.reminderMinutes != null) ? item.reminderMinutes : 60;
+        const opts = [[0,'No reminder'],[15,'15 minutes before'],[30,'30 minutes before'],
+            [60,'1 hour before'],[120,'2 hours before'],[360,'6 hours before'],
+            [1440,'1 day before'],[2880,'2 days before']]
+            .map(([v,l]) => `<option value="${v}"${cur===v?' selected':''}>${l}</option>`).join('');
+        const toast = document.createElement('div');
+        toast.id = 'reminder-picker-toast';
+        toast.className = 'reminder-toast';
+        toast.innerHTML = `
+            <div class="reminder-toast-title"><i class="fa-solid fa-bell"></i> Set Reminder</div>
+            <div class="reminder-toast-event" title="${item.title}">${item.title.length > 32 ? item.title.substring(0,32)+'…' : item.title}</div>
+            <select id="reminder-time-select" class="reminder-select">${opts}</select>
+            <div class="reminder-toast-actions">
+                <button id="reminder-save-btn" class="reminder-btn-save">Save</button>
+                <button id="reminder-skip-btn" class="reminder-btn-skip">Skip</button>
+            </div>`;
+        document.body.appendChild(toast);
+        const autoClose = setTimeout(() => toast.remove(), 15000);
+        requestAnimationFrame(() => toast.classList.add('show'));
+        document.getElementById('reminder-skip-btn').addEventListener('click', () => { clearTimeout(autoClose); toast.remove(); });
+        document.getElementById('reminder-save-btn').addEventListener('click', async () => {
+            clearTimeout(autoClose);
+            const minutes = parseInt(document.getElementById('reminder-time-select').value);
+            item.reminderMinutes = minutes;
+            await updateBookmarkReminder(item.id, minutes);
+            toast.innerHTML = '<div style="padding:14px 18px;text-align:center;font-weight:600;color:#4ade80;"><i class="fa-solid fa-check"></i> Reminder saved!</div>';
+            setTimeout(() => toast.remove(), 2000);
+        });
+    }
+
+    // --- DARK MODE TOGGLE ---
+    const darkToggle = document.getElementById('dark-mode-toggle');
+    if (darkToggle) {
+        const syncDarkUI = () => {
+            const isDark = document.documentElement.classList.contains('dark');
+            const icon = document.getElementById('dark-mode-icon');
+            const label = document.getElementById('dark-mode-label');
+            if (icon) icon.className = isDark ? 'fa-solid fa-sun' : 'fa-solid fa-moon';
+            if (label) label.textContent = isDark ? 'Light Mode' : 'Dark Mode';
+        };
+        syncDarkUI();
+        darkToggle.addEventListener('click', () => {
+            const isDark = document.documentElement.classList.toggle('dark');
+            localStorage.setItem('orbitTheme', isDark ? 'dark' : 'light');
+            syncDarkUI();
+        });
+    }
+
+    // --- NOTIFICATION PERMISSION TOGGLE ---
+    const notifToggle = document.getElementById('notif-toggle');
+    if (notifToggle) {
+        notifToggle.addEventListener('click', async () => {
+            if (typeof Notification === 'undefined') return;
+            if (Notification.permission === 'granted') {
+                new Notification('Orbit', { body: 'Push notifications are already enabled!', icon: '/static/images/Orbitlogo.png' });
+            } else {
+                const perm = await Notification.requestPermission();
+                if (perm === 'granted') {
+                    new Notification('Orbit', { body: "You'll now receive alerts before your bookmarked events.", icon: '/static/images/Orbitlogo.png' });
+                }
+            }
+        });
+    }
+
+    // --- AFK KEEP-ALIVE (pings /ping every 5 min while user is idle) ---
+    let lastActivity = Date.now();
+    ['mousemove', 'keydown', 'touchstart', 'scroll', 'click'].forEach(ev =>
+        document.addEventListener(ev, () => { lastActivity = Date.now(); }, { passive: true }));
+    setInterval(() => {
+        if (Date.now() - lastActivity > 5 * 60 * 1000) {
+            fetch('/ping', { method: 'GET', cache: 'no-store' }).catch(() => {});
+        }
+    }, 5 * 60 * 1000);
 });

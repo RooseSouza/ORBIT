@@ -11,6 +11,7 @@
     <script type="module" src="/static/js/app-logic.js"></script>
     <!-- Add Favicon -->
     <link rel="icon" type="image/png" href="/static/images/Orbitlogo.png">
+    <script>if(localStorage.getItem('orbitTheme')==='dark')document.documentElement.classList.add('dark');</script>
 </head>
 
 <body class="logged-in">
@@ -64,6 +65,14 @@
                     <i class="fa-solid fa-bookmark"></i> Bookmarks
                 </li>
             </a>
+            <li class="menu-item" id="dark-mode-toggle" style="cursor:pointer;">
+                <i class="fa-solid fa-moon" id="dark-mode-icon"></i>
+                <span id="dark-mode-label">Dark Mode</span>
+            </li>
+            <li class="menu-item" id="notif-toggle" style="cursor:pointer;">
+                <i class="fa-solid fa-bell"></i>
+                <span>Notifications</span>
+            </li>
         </ul>
     </div>
 
@@ -111,6 +120,13 @@
             <!-- 2. THE LOCATION (Map or Text) -->
             <div id="modal-location-container" style="margin-top: 30px; width: 100%;">
                 <!-- JS injects content here -->
+            </div>
+
+            <!-- 3. ADD TO GOOGLE CALENDAR -->
+            <div style="margin-top: 20px; text-align: center;">
+                <a id="add-to-gcal-btn" href="#" target="_blank" rel="noopener noreferrer" class="gcal-add-btn">
+                    <i class="fa-brands fa-google" style="margin-right: 8px;"></i>Add to Google Calendar
+                </a>
             </div>
 
         </div>
