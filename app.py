@@ -7,11 +7,7 @@ import os
 
 load_dotenv()
 
-app = Flask(
-    __name__,
-    template_folder="../templates",
-    static_folder="../static"
-)
+app = Flask(__name__)
 CORS(app, resources={r"/api/*": {"origins": "*"}})
 
 app.config['MAIL_SERVER'] = 'smtp.gmail.com'
