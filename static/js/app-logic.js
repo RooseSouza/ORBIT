@@ -6,6 +6,7 @@ import { toggleBookmark, getBookmarks, isBookmarked, updateBookmarkReminder } fr
 // --- DATA STORES ---
 window.globalEventsStore = [];      
 window.currentFilteredEvents = [];  
+window.bookmarksStore = [];
 
 // --- FILTER STATE ---
 let currentFilters = {
@@ -41,6 +42,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Modals & Filters (Refs)
     const searchInput = document.getElementById('searchInput');
+    const bookmarkSearchInput = document.getElementById('bookmarkSearch');
     const categoryChips = document.getElementById('categoryChips');
     const openFilterModalBtn = document.getElementById('openFilterModalBtn');
     const filterModalOverlay = document.getElementById('filter-modal-overlay');
@@ -96,9 +98,31 @@ document.addEventListener('DOMContentLoaded', () => {
                 guestCard.innerHTML = `
                     <div class="guest-access-title"><i class="fa-regular fa-user"></i> You are using Guest Mode</div>
                     <div class="guest-access-text">Log in with your account for full access, including bookmarks and personalized menus.</div>
-                    <a class="guest-access-link" href="/">Log in to unlock full access</a>
+                    <button class="guest-access-link" id="guestUpgradeBtn" type="button">Log in to unlock full access</button>
                 `;
                 homeView.insertBefore(guestCard, homeView.firstChild);
+
+                const guestUpgradeBtn = document.getElementById('guestUpgradeBtn');
+                if (guestUpgradeBtn) {
+                    guestUpgradeBtn.addEventListener('click', async () => {
+                        try {
+                            provider.addScope('https://www.googleapis.com/auth/calendar.readonly');
+                            provider.addScope('https://www.googleapis.com/auth/tasks.readonly');
+                            provider.setCustomParameters({ prompt: 'consent', access_type: 'offline' });
+
+                            localStorage.removeItem('isOrbitGuest');
+                            const result = await signInWithPopup(auth, provider);
+                            const credential = GoogleAuthProvider.credentialFromResult(result);
+                            if (credential && credential.accessToken) {
+                                localStorage.setItem('googleCalendarToken', credential.accessToken);
+                            }
+                            window.location.href = '/home';
+                        } catch (e) {
+                            console.error('Guest upgrade login failed:', e);
+                            alert('Login failed. Please try again.');
+                        }
+                    });
+                }
             }
         } else {
             if (navIcon) navIcon.style.display = '';
@@ -274,11 +298,41 @@ document.addEventListener('DOMContentLoaded', () => {
         container.innerHTML = '<div style="text-align:center; padding: 20px;"><i class="fa-solid fa-circle-notch fa-spin"></i> Loading Bookmarks...</div>';
         const bms = await getBookmarks();
         bms.sort((a, b) => new Date(a.sortDate) - new Date(b.sortDate));
+        window.bookmarksStore = bms;
         if (bms.length === 0) {
             container.innerHTML = '<div style="text-align:center; padding: 40px; color:#888;">No bookmarks yet.</div>';
         } else {
-            renderMixedItems(bms, container);
+            applyBookmarkSearch();
         }
+    }
+
+    async function applyBookmarkSearch() {
+        const container = document.getElementById('dynamic-bookmarks-container');
+        if (!container) return;
+
+        const query = (bookmarkSearchInput?.value || '').trim().toLowerCase();
+        const allBookmarks = window.bookmarksStore || [];
+
+        if (!query) {
+            if (allBookmarks.length === 0) {
+                container.innerHTML = '<div style="text-align:center; padding: 40px; color:#888;">No bookmarks yet.</div>';
+                return;
+            }
+            await renderMixedItems(allBookmarks, container);
+            return;
+        }
+
+        const filtered = allBookmarks.filter(item => {
+            const text = `${item.title || ''} ${item.description || ''}`.toLowerCase();
+            return text.includes(query);
+        });
+
+        if (filtered.length === 0) {
+            container.innerHTML = '<div style="text-align:center; padding: 40px; color:#888;">No bookmarks match your search.</div>';
+            return;
+        }
+
+        await renderMixedItems(filtered, container);
     }
 
     // --- API Helpers (Updated to throw 401) ---
@@ -421,6 +475,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- FILTER LISTENERS ---
     if(searchInput) { searchInput.addEventListener('input', (e) => { currentFilters.search = e.target.value.toLowerCase(); applyFilters(); }); }
+    if (bookmarkSearchInput) {
+        bookmarkSearchInput.addEventListener('input', () => {
+            applyBookmarkSearch();
+        });
+    }
     document.querySelectorAll('.dropdown-item').forEach(item => {
         item.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -689,7 +748,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (dLocType === 'map' && dLocValue && dLocValue !== 'undefined') {
                 locContainer.innerHTML = `<iframe src="${dLocValue}" width="100%" height="250" style="border:0; border-radius:12px;" allowfullscreen="" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>`;
             } else if (dLocValue && dLocValue !== 'undefined' && dLocValue !== "") {
-                locContainer.innerHTML = `<div style="background:#f5f5f5; padding:15px; border-radius:12px; font-size:14px; display:flex; align-items:center; gap:10px;"><i class="fa-solid fa-location-dot" style="color:#569aff; font-size:18px;"></i><span>${dLocValue}</span></div>`;
+                locContainer.innerHTML = `<div class="modal-location-card"><i class="fa-solid fa-location-dot"></i><span>${dLocValue}</span></div>`;
             }
         }
         const gcalBtn = document.getElementById('add-to-gcal-btn');
@@ -890,6 +949,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- NOTIFICATION PERMISSION TOGGLE ---
     const notifToggle = document.getElementById('notif-toggle');
+
+    // Auto-prompt on load if permission is not yet granted.
+    if (typeof Notification !== 'undefined' && Notification.permission !== 'granted') {
+        Notification.requestPermission().then((perm) => {
+            if (perm === 'granted') {
+                new Notification('Orbit', {
+                    body: "You'll now receive alerts before your bookmarked events.",
+                    icon: '/static/images/Orbitlogo.png'
+                });
+            }
+        }).catch(() => {});
+    }
+
     if (notifToggle) {
         notifToggle.addEventListener('click', async () => {
             if (typeof Notification === 'undefined') return;

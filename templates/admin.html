@@ -7,6 +7,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <link rel="icon" type="image/png" href="/static/images/timer_logo-removebg-preview.png">
+    <script>if(localStorage.getItem('orbitTheme')==='dark')document.documentElement.classList.add('dark');</script>
 
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script type="module" src="/static/js/admin-logic.js"></script>
@@ -362,6 +364,26 @@
             border-color: #cbd5e1;
         }
 
+        .btn-theme {
+            background: var(--card);
+            color: var(--text);
+            border: 1px solid var(--border);
+            padding: 10px 16px;
+            border-radius: 50px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 700;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s ease;
+        }
+
+        .btn-theme:hover {
+            background: var(--bg);
+            border-color: var(--primary);
+        }
+
         /* Events Header */
         .events-header {
             display: flex;
@@ -407,10 +429,12 @@
             grid-template-columns: auto 1fr auto;
             gap: 20px;
             align-items: center;
+            cursor: pointer;
             transition: all 0.3s ease;
         }
         
         .event-item:hover { 
+            background: color-mix(in srgb, var(--card) 88%, var(--primary-light) 12%);
             border-color: var(--primary);
             box-shadow: var(--shadow-lg);
             transform: translateY(-2px);
@@ -578,7 +602,8 @@
         /* ====================== */
         /* DELETE MODAL STYLES */
         /* ====================== */
-        #delete-modal {
+        #delete-modal,
+        #details-modal {
             position: fixed;
             top: 0;
             left: 0;
@@ -602,7 +627,8 @@
             transition: opacity 0.2s ease;
         }
 
-        #delete-modal.show .modal-overlay {
+        #delete-modal.show .modal-overlay,
+        #details-modal.show .modal-overlay {
             opacity: 1;
         }
 
@@ -618,7 +644,79 @@
             transition: transform 0.2s ease;
         }
 
-        #delete-modal.show .modal-content {
+        .details-modal-content {
+            position: relative;
+            text-align: left;
+            max-width: 620px;
+            max-height: 86vh;
+            overflow-y: auto;
+        }
+
+        .details-close-btn {
+            position: absolute;
+            top: 16px;
+            right: 18px;
+            border: none;
+            background: transparent;
+            color: var(--text-muted);
+            font-size: 28px;
+            cursor: pointer;
+            line-height: 1;
+        }
+
+        .details-title {
+            font-size: 24px;
+            font-weight: 800;
+            color: var(--text);
+            margin: 0 40px 10px 0;
+        }
+
+        .details-meta {
+            color: var(--text-muted);
+            font-size: 14px;
+            margin-bottom: 18px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .details-section {
+            margin-top: 16px;
+        }
+
+        .details-section h4 {
+            font-size: 13px;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+        }
+
+        .details-section p {
+            color: var(--text);
+            font-size: 14px;
+            line-height: 1.6;
+            margin: 0;
+        }
+
+        .details-location-text {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 12px 14px;
+            color: var(--text);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 14px;
+        }
+
+        .details-location-text i {
+            color: var(--primary);
+        }
+
+        #delete-modal.show .modal-content,
+        #details-modal.show .modal-content {
             transform: scale(1) translateY(0);
         }
 
@@ -745,6 +843,45 @@
             background: linear-gradient(135deg, #ef4444, #dc2626);
         }
 
+        html.dark {
+            --bg: #0d0f18;
+            --card: #1a1d2e;
+            --text: #eef2ff;
+            --text-muted: #8a96b8;
+            --border: #2d3350;
+            --primary-light: #1e2a50;
+            --shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+            --shadow-lg: 0 14px 28px rgba(0, 0, 0, 0.45);
+            --shadow-xl: 0 22px 40px rgba(0, 0, 0, 0.55);
+        }
+
+        html.dark body {
+            background-image:
+                radial-gradient(at 0% 0%, rgba(86, 154, 255, 0.12) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(224, 107, 241, 0.12) 0px, transparent 50%);
+        }
+
+        html.dark .btn-logout {
+            background: #2a1d26;
+            border-color: #5b2c3e;
+            color: #fda4af;
+        }
+
+        html.dark .btn-secondary {
+            background: var(--card);
+            color: var(--text);
+            border-color: var(--border);
+        }
+
+        html.dark .tag-past {
+            background: #232a3d;
+            color: #94a3b8;
+        }
+
+        html.dark .helper-text {
+            color: #94a3b8;
+        }
+
         .toast i {
             font-size: 18px;
         }
@@ -789,6 +926,11 @@
                 right: 20px;
                 bottom: 20px;
             }
+
+            .details-modal-content {
+                width: 94%;
+                padding: 24px;
+            }
         }
     </style>
 </head>
@@ -803,6 +945,10 @@
                 <h1>Admin Panel</h1>
             </div>
             <div class="header-actions">
+                <button id="adminThemeToggle" class="btn-theme" type="button">
+                    <i id="adminThemeIcon" class="fa-solid fa-moon"></i>
+                    <span id="adminThemeLabel">Dark Mode</span>
+                </button>
                 <a href="/home" class="back-link" id="adminBackLink">
                     <i class="fa-solid fa-arrow-left"></i> Back to App
                 </a>
@@ -924,6 +1070,28 @@
 
         </div>
     </div>
+
+    <script>
+        (function () {
+            const toggleBtn = document.getElementById('adminThemeToggle');
+            const icon = document.getElementById('adminThemeIcon');
+            const label = document.getElementById('adminThemeLabel');
+            if (!toggleBtn) return;
+
+            const syncUI = () => {
+                const isDark = document.documentElement.classList.contains('dark');
+                if (icon) icon.className = isDark ? 'fa-solid fa-sun' : 'fa-solid fa-moon';
+                if (label) label.textContent = isDark ? 'Light Mode' : 'Dark Mode';
+            };
+
+            syncUI();
+            toggleBtn.addEventListener('click', () => {
+                const isDark = document.documentElement.classList.toggle('dark');
+                localStorage.setItem('orbitTheme', isDark ? 'dark' : 'light');
+                syncUI();
+            });
+        })();
+    </script>
 
 </body>
 </html>

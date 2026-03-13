@@ -13,8 +13,23 @@ CORS(app, resources={r"/api/*": {"origins": "*"}})
 
 @app.route('/ping', methods=['GET', 'HEAD'])
 def ping():
-    """Lightweight keep-alive endpoint used by the frontend AFK pinger."""
-    return '', 204
+    """Lightweight uptime endpoint for external monitors and keep-alive checks."""
+    expected = os.environ.get('UPTIME_PING_TOKEN')
+    provided = request.args.get('token')
+    if expected and provided != expected:
+        return jsonify({"ok": False, "error": "unauthorized"}), 401
+
+    if request.method == 'HEAD':
+        response = app.response_class('', status=204)
+    else:
+        response = jsonify({
+            "ok": True,
+            "service": "orbit",
+            "time": datetime.utcnow().isoformat() + "Z"
+        })
+
+    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    return response
 
 app.config['MAIL_SERVER'] = 'smtp.gmail.com'
 app.config['MAIL_PORT'] = 465

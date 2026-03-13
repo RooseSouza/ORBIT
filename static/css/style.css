@@ -7,7 +7,7 @@
 
 body {
   font-family: "Inter", sans-serif;
-  background-color: #fffcf5;
+  background-color: #f8fafc;
   overflow-x: hidden;
 }
 
@@ -352,7 +352,7 @@ body:not(.logged-in) #app-preloader {
      DARK MODE
   =================================================== */
   html.dark body { background-color: #0d0f18; color: #dde4f0; }
-  html.dark #dynamic-bg { background: linear-gradient(90deg, #7b2d8b 0%, #1a4a9e 100%); }
+  html.dark #dynamic-bg { background: linear-gradient(90deg, #e06bf1 0%, #569aff 100%); }
   html.dark #side-menu { background: #13162a; }
   html.dark .menu-header { border-bottom-color: #252840; }
   html.dark .menu-header h2 { color: #eef2ff; }
@@ -360,7 +360,9 @@ body:not(.logged-in) #app-preloader {
   html.dark .menu-item:hover { background-color: #1e2238; }
   html.dark .menu-item.active { background-color: #1e2a50; color: #7db4ff; }
   html.dark #close-menu-btn { color: #9ba8cb; }
-  html.dark .event-card { background: #1a1d2e; border-color: #2d3350 !important; }
+  html.dark .event-card { background: #1a1d2e; border-color: #2d3350; }
+  html.dark .event-card.card-green { border-color: #22c55e !important; }
+  html.dark .event-card.card-blue { border-color: #38bdf8 !important; }
   html.dark .event-info h3 { color: #eef2ff; }
   html.dark .event-info p { color: #8a96b8; }
   html.dark .countdown-box { background: #1a1d2e; border-color: #3a4068; }
@@ -401,17 +403,43 @@ body:not(.logged-in) #app-preloader {
   html.dark .cal-nav-btn { color: #c8d0e7; }
   html.dark .page-title { color: #eef2ff; }
   html.dark .view-toggle { background: #1a1d2e; border-color: #2d3350; }
-  html.dark .toggle-btn { color: #8a96b8; }
+  html.dark .toggle-btn { color: #f5f8ff; }
   html.dark .filter-sidebar { background: #13162a; }
   html.dark .filter-sidebar-heading { color: #5a6585; }
   html.dark .filter-sidebar-divider { border-color: #252840; }
   html.dark .day-event-item { background: #1a1d2e; border-color: #2d3350; }
+  html.dark .day-event-item.border-green { border-left: 4px solid #22c55e !important; }
+  html.dark .day-event-item.border-blue { border-left: 4px solid #38bdf8 !important; }
+  html.dark .cal-line.green { background-color: #22c55e; }
+  html.dark .cal-line.blue { background-color: #38bdf8; }
   html.dark .day-event-item h4 { color: #eef2ff; }
   html.dark .day-event-item p { color: #8a96b8; }
   html.dark .guest-access-card { background: #131d38; border-color: #2d3a5e; }
   html.dark .guest-access-title { color: #93c5fd; }
   html.dark .guest-access-text { color: #6d87b5; }
   html.dark .modal-overlay { background: rgba(0,0,0,0.75); }
+
+  .modal-location-card {
+    background: #f5f5f5;
+    padding: 15px;
+    border-radius: 12px;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: #2a3647;
+  }
+
+  .modal-location-card i {
+    color: #569aff;
+    font-size: 18px;
+  }
+
+  html.dark .modal-location-card {
+    background: #252840;
+    border: 1px solid #3a4068;
+    color: #c8d0e7;
+  }
 
   /* ===================================================
      ADD TO GOOGLE CALENDAR BUTTON
@@ -834,7 +862,7 @@ body:not(.logged-in) #app-preloader {
   left: 0;
   width: 100%;
   height: 100vh;
-  background-color: #fffcf5; /* Matches body bg */
+  background-color: #f8fafc; /* Matches body bg */
   z-index: 9999; /* On top of EVERYTHING */
   display: flex;
   justify-content: center;
@@ -1117,7 +1145,7 @@ body:not(.logged-in) #app-preloader {
 }
 body {
   font-family: "Inter", sans-serif;
-  background-color: #fffcf5;
+  background-color: #f8fafc;
   overflow-x: hidden;
 }
 a {
@@ -1132,7 +1160,7 @@ a {
   left: 0;
   width: 100%;
   height: 100vh;
-  background-color: #fffcf5;
+  background-color: #f8fafc;
   z-index: 9999;
   display: flex;
   justify-content: center;
