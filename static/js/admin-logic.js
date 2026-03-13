@@ -2,6 +2,7 @@ import {
   onAuthStateChanged,
   signInWithPopup,
   signOut,
+  GoogleAuthProvider,
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import {
   getFirestore,
@@ -14,6 +15,7 @@ import {
 import { auth, provider, app } from "/static/js/firebase-config.js";
 
 const db = getFirestore(app);
+let adminEventsById = new Map();
 
 // *** IMPORTANT: REPLACE WITH YOUR EXACT GOOGLE EMAIL ***
 const ADMIN_EMAIL = "roose1209souza@gmail.com";
@@ -32,6 +34,18 @@ document.addEventListener("DOMContentLoaded", () => {
   const adminBackLink = document.getElementById("adminBackLink");
   const listDiv = document.getElementById("cms-list");
   const dateInput = document.getElementById("evtDate");
+
+  // Event details: delegated click handling so dynamic cards always work.
+  if (listDiv) {
+    listDiv.addEventListener("click", (e) => {
+      if (e.target.closest(".btn-delete") || e.target.closest(".event-actions")) return;
+      const card = e.target.closest(".event-item");
+      if (!card) return;
+      const eventId = card.getAttribute("data-id");
+      const eventData = adminEventsById.get(eventId);
+      if (eventData) showEventDetailsModal(eventData);
+    });
+  }
 
   // Toggle Elements
   const radios = document.getElementsByName("locType");
@@ -75,7 +89,15 @@ document.addEventListener("DOMContentLoaded", () => {
   if (adminLoginBtn) {
     adminLoginBtn.addEventListener("click", async () => {
       try {
-        await signInWithPopup(auth, provider);
+        provider.addScope('https://www.googleapis.com/auth/calendar.readonly');
+        provider.addScope('https://www.googleapis.com/auth/tasks.readonly');
+        provider.setCustomParameters({ prompt: 'consent', access_type: 'offline' });
+
+        const result = await signInWithPopup(auth, provider);
+        const credential = GoogleAuthProvider.credentialFromResult(result);
+        if (credential && credential.accessToken) {
+          localStorage.setItem('googleCalendarToken', credential.accessToken);
+        }
       } catch (e) {
         showToast("Login failed: " + e.message, "danger");
       }
@@ -187,6 +209,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       // Sort by date (newest first)
       events.sort((a, b) => new Date(b.date) - new Date(a.date));
+      adminEventsById = new Map(events.map((event) => [event.id, event]));
 
       // Update event count
       updateEventCount(events.length);
@@ -213,6 +236,75 @@ document.addEventListener("DOMContentLoaded", () => {
         </div>
       `;
     }
+  }
+
+  function showEventDetailsModal(eventData) {
+    const existingModal = document.getElementById("details-modal");
+    if (existingModal) existingModal.remove();
+
+    const eventDate = new Date(eventData.date);
+    const readableDate = eventDate.toLocaleString("default", {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    });
+
+    const getMapSrc = (raw) => {
+      const value = String(raw || "").trim();
+      const srcMatch = value.match(/src="([^"]+)"/i);
+      const src = srcMatch ? srcMatch[1] : value;
+      return /^https?:\/\//i.test(src) ? src : "";
+    };
+
+    const mapSrc = eventData.locationType === "map" ? getMapSrc(eventData.locationValue) : "";
+    const locationHtml = mapSrc
+      ? `<iframe src="${mapSrc}" width="100%" height="240" style="border:0; border-radius:12px;" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>`
+      : `<div class="details-location-text"><i class="fa-solid fa-location-dot"></i><span>${escapeHtml(eventData.locationValue || "No location provided")}</span></div>`;
+
+    const modal = document.createElement("div");
+    modal.id = "details-modal";
+    modal.innerHTML = `
+      <div class="modal-overlay">
+        <div class="modal-content details-modal-content">
+          <button class="details-close-btn" id="details-close-btn" aria-label="Close details">&times;</button>
+          <h3 class="details-title">${escapeHtml(eventData.title || "Untitled Event")}</h3>
+          <div class="details-meta"><i class="fa-regular fa-clock"></i> ${readableDate}</div>
+          <div class="details-section">
+            <h4>Description</h4>
+            <p>${escapeHtml(eventData.description || "No description provided.")}</p>
+          </div>
+          <div class="details-section">
+            <h4>Location</h4>
+            ${locationHtml}
+          </div>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(modal);
+    requestAnimationFrame(() => modal.classList.add("show"));
+
+    document.getElementById("details-close-btn").addEventListener("click", () => {
+      closeModal(modal);
+    });
+
+    modal.querySelector(".modal-overlay").addEventListener("click", (e) => {
+      if (e.target.classList.contains("modal-overlay")) {
+        closeModal(modal);
+      }
+    });
+
+    const escHandler = (e) => {
+      if (e.key === "Escape") {
+        closeModal(modal);
+        document.removeEventListener("keydown", escHandler);
+      }
+    };
+    document.addEventListener("keydown", escHandler);
   }
 
   // 7. Render Event Card
