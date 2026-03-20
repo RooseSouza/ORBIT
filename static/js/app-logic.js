@@ -474,7 +474,20 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- FILTER LISTENERS ---
-    if(searchInput) { searchInput.addEventListener('input', (e) => { currentFilters.search = e.target.value.toLowerCase(); applyFilters(); }); }
+    if(searchInput) {
+        searchInput.addEventListener('input', (e) => {
+            currentFilters.search = e.target.value.toLowerCase();
+
+            // If user is on calendar view, switch back to list view for search results.
+            const listBtn = document.getElementById('btnListView');
+            const calendarBtn = document.getElementById('btnCalendarView');
+            if (listBtn && calendarBtn && calendarBtn.classList.contains('active')) {
+                listBtn.click();
+            }
+
+            applyFilters();
+        });
+    }
     if (bookmarkSearchInput) {
         bookmarkSearchInput.addEventListener('input', () => {
             applyBookmarkSearch();
