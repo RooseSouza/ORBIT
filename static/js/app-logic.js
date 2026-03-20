@@ -549,6 +549,32 @@ document.addEventListener('DOMContentLoaded', () => {
             !currentFilters.showTasks;
 
         if (openFilterModalBtn) openFilterModalBtn.classList.toggle('active', hasCustom);
+
+        if (hasCustom) {
+            // When custom filters are active, clear quick filter button states.
+            currentFilters.source = 'all';
+            currentFilters.time = 'all';
+            currentFilters.category = 'all';
+            currentFilters.categoryKeywords = [];
+
+            if (categoryChips) {
+                categoryChips.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+            }
+
+            const sourceFilterBtn = document.getElementById('sourceFilterBtn');
+            const timeFilterBtn = document.getElementById('timeFilterBtn');
+            if (sourceFilterBtn) {
+                const label = sourceFilterBtn.querySelector('span');
+                if (label) label.innerText = 'All Events';
+                sourceFilterBtn.classList.remove('active');
+            }
+            if (timeFilterBtn) {
+                const label = timeFilterBtn.querySelector('span');
+                if (label) label.innerText = 'Any Time';
+                timeFilterBtn.classList.remove('active');
+            }
+        }
+
         document.getElementById('filter-modal-overlay').classList.remove('show'); applyFilters();
     });
     if(resetFiltersBtn) resetFiltersBtn.addEventListener('click', () => {
