@@ -691,7 +691,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const year = dt.getFullYear();
         const dateStr = `${day}/${month}/${year}` + (item.isAllDay ? "" : " at " + dt.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}));
 
-        openModal(item.title, item.description, dateStr, item.sortDate, item.locType, item.locValue);
+        openModal(item.title, item.description, dateStr, item.sortDate, item.locType, item.locValue, item.type);
     };
 
     function checkReminders(bookmarkedEvents) {
@@ -748,7 +748,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- MODAL LOGIC ---
-    window.openModal = function(title, desc, dateStr, rawIsoDate, locType, locValue) {
+    window.openModal = function(title, desc, dateStr, rawIsoDate, locType, locValue, itemType) {
         if(!modalOverlay) return;
         modalTitle.innerText = decodeURIComponent(title);
         modalDesc.innerText = decodeURIComponent(desc) || "No description.";
@@ -765,7 +765,13 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
         const gcalBtn = document.getElementById('add-to-gcal-btn');
-        if (gcalBtn && rawIsoDate) {
+        const isGoogleCalendarEvent = itemType === 'Event';
+
+        if (gcalBtn) {
+            gcalBtn.style.display = isGoogleCalendarEvent ? 'none' : 'inline-flex';
+        }
+
+        if (gcalBtn && rawIsoDate && !isGoogleCalendarEvent) {
             const startDt = new Date(rawIsoDate);
             const endDt = new Date(startDt.getTime() + 60 * 60 * 1000);
             const fmt = d => d.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
@@ -793,7 +799,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const icon = item.type === 'Task' ? 'Task' : (item.type === 'Public' ? 'Public' : 'Event');
                 const dt = new Date(item.sortDate); const timeStr = item.isAllDay ? "All Day" : dt.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}); const safeDateStr = `${dateString} at ${timeStr}`; const colorBorder = item.color === 'blue' ? 'border-blue' : 'border-green';
                 const div = document.createElement('div'); div.className = `day-event-item ${colorBorder}`; div.innerHTML = `<h4>${item.title}</h4><p>${timeStr} • ${icon}</p>`;
-                div.addEventListener('click', () => { closeDayModal(); setTimeout(() => { openModal(encodeURIComponent(item.title), encodeURIComponent(item.description), encodeURIComponent(safeDateStr), item.sortDate, encodeURIComponent(item.locType), encodeURIComponent(item.locValue)); }, 300); });
+                div.addEventListener('click', () => { closeDayModal(); setTimeout(() => { openModal(encodeURIComponent(item.title), encodeURIComponent(item.description), encodeURIComponent(safeDateStr), item.sortDate, encodeURIComponent(item.locType), encodeURIComponent(item.locValue), item.type); }, 300); });
                 dayEventsList.appendChild(div);
             });
         }
