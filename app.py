@@ -3,7 +3,9 @@ from flask_mail import Mail, Message
 from flask_cors import CORS
 from datetime import datetime
 from dotenv import load_dotenv
+import base64
 import os
+import re
 
 load_dotenv()
 
@@ -95,6 +97,11 @@ ORGANISER_API_KEY = os.environ.get('ORGANISER_API_KEY', 'orbit-dev-key')
 def login():
     return render_template('login.html')
 
+
+@app.route('/create-account')
+def create_account():
+    return render_template('create-account.html')
+
 # 2. Home Dashboard
 @app.route('/home')
 def home():
@@ -170,6 +177,57 @@ def _require_db():
     return None
 
 
+def _normalize_http_image_url(value):
+    """Allow only http(s) image links for organiser API payloads."""
+    raw = str(value or "").strip()
+    if not raw:
+        return None
+    if re.match(r"^https?://", raw, flags=re.IGNORECASE):
+        return raw
+    return None
+
+
+def _extract_image_urls_from_payload(payload):
+    """Parse image URLs from JSON/form payload using flexible field names."""
+    candidates = []
+    raw = payload.get('images')
+    if raw is None:
+        raw = payload.get('imageLinks')
+    if raw is None:
+        raw = payload.get('imageUrls')
+
+    if isinstance(raw, list):
+        candidates.extend(raw)
+    elif isinstance(raw, str):
+        candidates.extend([x.strip() for x in re.split(r"[\n,]", raw) if x.strip()])
+
+    urls = []
+    seen = set()
+    for candidate in candidates:
+        normalized = _normalize_http_image_url(candidate)
+        if normalized and normalized not in seen:
+            seen.add(normalized)
+            urls.append(normalized)
+    return urls
+
+
+def _extract_uploaded_images_as_data_urls(files):
+    """Convert uploaded image files to data URLs so they can be stored directly in Firestore."""
+    images = []
+    for file in files:
+        if not file or not file.filename:
+            continue
+        mime = (file.mimetype or '').lower()
+        if not mime.startswith('image/'):
+            continue
+        data = file.read()
+        if not data:
+            continue
+        b64 = base64.b64encode(data).decode('ascii')
+        images.append(f"data:{mime};base64,{b64}")
+    return images
+
+
 @app.route('/api/events', methods=['POST'])
 def api_create_event():
     """
@@ -180,20 +238,37 @@ def api_create_event():
       date        (required)  – ISO 8601, e.g. "2026-06-15T18:00:00"
       description (optional)  – event details
       location    (optional)  – venue / address text
+            ticketUrl   (optional)  – booking page URL
     """
     err = _check_api_key()
     if err: return err
     err = _require_db()
     if err: return err
 
-    data = request.get_json(silent=True)
+    data = request.get_json(silent=True) if request.is_json else request.form.to_dict(flat=True)
     if not data:
-        return jsonify({"success": False, "error": "Request body must be JSON"}), 400
+        return jsonify({"success": False, "error": "Request body must be JSON or form data"}), 400
 
     title = str(data.get('title', '')).strip()
-    date  = str(data.get('date',  '')).strip()
+    date = str(data.get('date', '')).strip()
     description = str(data.get('description', '')).strip()
-    location    = str(data.get('location', '')).strip()
+    location = str(data.get('location', '')).strip()
+    ticket_url = str(data.get('ticketUrl') or data.get('ticket_url') or '').strip()
+    if ticket_url and not re.match(r"^https?://", ticket_url, flags=re.IGNORECASE):
+        ticket_url = ''
+    image_urls = _extract_image_urls_from_payload(data)
+
+    # Optional Postman form-data files under key: image_files
+    uploaded_images = _extract_uploaded_images_as_data_urls(request.files.getlist('image_files'))
+    all_images = []
+    seen_images = set()
+    for img in image_urls + uploaded_images:
+        if img not in seen_images:
+            seen_images.add(img)
+            all_images.append(img)
+
+    # Keep payload size reasonable for Firestore documents.
+    all_images = all_images[:8]
 
     if not title or not date:
         return jsonify({"success": False, "error": "'title' and 'date' are required"}), 422
@@ -212,6 +287,8 @@ def api_create_event():
         'type': 'public',
         'locationType': 'text',
         'locationValue': location,
+        'ticketUrl': ticket_url,
+        'images': all_images,
     })
 
     return jsonify({"success": True, "id": doc_ref.id, "message": f"Event '{title}' published."}), 201
@@ -238,6 +315,8 @@ def api_get_events():
             'date':        d.get('date'),
             'description': d.get('description'),
             'location':    d.get('locationValue'),
+            'ticketUrl':   d.get('ticketUrl') or '',
+            'images':      d.get('images') or [],
         })
 
     events.sort(key=lambda e: e['date'] or '')

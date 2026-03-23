@@ -34,6 +34,9 @@ document.addEventListener("DOMContentLoaded", () => {
   const adminBackLink = document.getElementById("adminBackLink");
   const listDiv = document.getElementById("cms-list");
   const dateInput = document.getElementById("evtDate");
+  const imageFileInput = document.getElementById("evtImageFiles");
+  const imageLinksInput = document.getElementById("evtImageLinks");
+  const imagePreview = document.getElementById("evtImagePreview");
 
   // Event details: delegated click handling so dynamic cards always work.
   if (listDiv) {
@@ -53,6 +56,71 @@ document.addEventListener("DOMContentLoaded", () => {
   const groupMap = document.getElementById("group-loc-map");
 
   let datePicker = null;
+  const MAX_EVENT_IMAGES = 8;
+  let uploadedImageDataUrls = [];
+
+  function normalizeImageUrls(urls, allowDataUrl = false) {
+    const list = Array.isArray(urls) ? urls : [];
+    const out = [];
+    const seen = new Set();
+
+    list.forEach((url) => {
+      const raw = String(url || "").trim();
+      if (!raw) return;
+      const isHttp = /^https?:\/\//i.test(raw);
+      const isDataImage = /^data:image\//i.test(raw);
+      if (!isHttp && !(allowDataUrl && isDataImage)) return;
+      if (seen.has(raw)) return;
+      seen.add(raw);
+      out.push(raw);
+    });
+
+    return out.slice(0, MAX_EVENT_IMAGES);
+  }
+
+  function parseImageLinksInput(raw) {
+    const parts = String(raw || "")
+      .split(/[\n,]/)
+      .map((x) => x.trim())
+      .filter(Boolean);
+    return normalizeImageUrls(parts, false);
+  }
+
+  function readFileAsDataUrl(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ""));
+      reader.onerror = () => reject(new Error("Failed to read image file."));
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function syncUploadedImageFiles() {
+    const files = Array.from(imageFileInput?.files || []);
+    const imageFiles = files.filter((file) => String(file.type || "").startsWith("image/"));
+    const dataUrls = await Promise.all(imageFiles.map((file) => readFileAsDataUrl(file)));
+    uploadedImageDataUrls = normalizeImageUrls(dataUrls, true);
+    renderImagePreview();
+  }
+
+  function getCombinedImageUrls() {
+    const links = parseImageLinksInput(imageLinksInput?.value || "");
+    return normalizeImageUrls([...uploadedImageDataUrls, ...links], true);
+  }
+
+  function renderImagePreview() {
+    if (!imagePreview) return;
+    const images = getCombinedImageUrls();
+    if (!images.length) {
+      imagePreview.innerHTML = "";
+      return;
+    }
+
+    imagePreview.innerHTML = images
+      .map((src) => `<div class="image-preview-item"><img src="${src}" alt="Event image preview"></div>`)
+      .join("");
+  }
+
   if (dateInput && typeof window.flatpickr === "function") {
     datePicker = window.flatpickr(dateInput, {
       enableTime: true,
@@ -61,6 +129,22 @@ document.addEventListener("DOMContentLoaded", () => {
       altFormat: "F j, Y h:i K",
       minDate: "today",
       time_24hr: false,
+    });
+  }
+
+  if (imageFileInput) {
+    imageFileInput.addEventListener("change", async () => {
+      try {
+        await syncUploadedImageFiles();
+      } catch (e) {
+        showToast(e.message, "danger");
+      }
+    });
+  }
+
+  if (imageLinksInput) {
+    imageLinksInput.addEventListener("input", () => {
+      renderImagePreview();
     });
   }
 
@@ -132,6 +216,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const title = document.getElementById("evtTitle").value;
     const desc = document.getElementById("evtDesc").value;
     const date = dateInput ? dateInput.value : "";
+    const ticketUrlRaw = (document.getElementById("evtTicketUrl")?.value || "").trim();
+    const ticketUrl = /^https?:\/\//i.test(ticketUrlRaw) ? ticketUrlRaw : "";
 
     let locType = "text";
     let locValue = "";
@@ -145,6 +231,9 @@ document.addEventListener("DOMContentLoaded", () => {
       locType = "text";
       locValue = document.getElementById("evtLocText").value;
     }
+
+    await syncUploadedImageFiles();
+    const images = getCombinedImageUrls();
 
     if (!title || !date) {
       showToast("Title and Date are required!", "danger");
@@ -162,6 +251,8 @@ document.addEventListener("DOMContentLoaded", () => {
         type: "public",
         locationType: locType,
         locationValue: locValue,
+        ticketUrl,
+        images,
       });
 
       showToast("Event published successfully!", "success");
@@ -176,6 +267,11 @@ document.addEventListener("DOMContentLoaded", () => {
       }
       document.getElementById("evtLocText").value = "";
       document.getElementById("evtLocMap").value = "";
+      document.getElementById("evtTicketUrl").value = "";
+      if (imageFileInput) imageFileInput.value = "";
+      if (imageLinksInput) imageLinksInput.value = "";
+      uploadedImageDataUrls = [];
+      renderImagePreview();
 
       loadEvents();
     } catch (e) {
@@ -261,6 +357,15 @@ document.addEventListener("DOMContentLoaded", () => {
     };
 
     const mapSrc = eventData.locationType === "map" ? getMapSrc(eventData.locationValue) : "";
+    const ticketUrl = /^https?:\/\//i.test(String(eventData.ticketUrl || "").trim())
+      ? String(eventData.ticketUrl).trim()
+      : "";
+    const imageUrls = normalizeImageUrls(eventData.images || [], true);
+    const imagesHtml = imageUrls.length
+      ? `<div class="details-image-grid">${imageUrls
+          .map((src) => `<div class="details-image-item"><img src="${src}" alt="Event image"></div>`)
+          .join("")}</div>`
+      : `<p style="color:#94a3b8;">No images attached.</p>`;
     const locationHtml = mapSrc
       ? `<iframe src="${mapSrc}" width="100%" height="240" style="border:0; border-radius:12px;" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>`
       : `<div class="details-location-text"><i class="fa-solid fa-location-dot"></i><span>${escapeHtml(eventData.locationValue || "No location provided")}</span></div>`;
@@ -278,8 +383,18 @@ document.addEventListener("DOMContentLoaded", () => {
             <p>${escapeHtml(eventData.description || "No description provided.")}</p>
           </div>
           <div class="details-section">
+            <h4>Images</h4>
+            ${imagesHtml}
+          </div>
+          <div class="details-section">
             <h4>Location</h4>
             ${locationHtml}
+          </div>
+          <div class="details-section">
+            <h4>Tickets</h4>
+            ${ticketUrl
+              ? `<a href="${ticketUrl}" target="_blank" rel="noopener noreferrer" class="btn-secondary" style="display:inline-flex; width:auto;"><i class="fa-solid fa-ticket"></i>&nbsp;Open Booking Page</a>`
+              : `<p style="color:#94a3b8;">No ticket link provided.</p>`}
           </div>
         </div>
       </div>
@@ -322,6 +437,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const isUpcoming = date > new Date();
     const locationDisplay = event.locationType === "map" ? "Map Location" : event.locationValue || "No location";
     const locationIcon = event.locationType === "map" ? "fa-map-location-dot" : "fa-location-dot";
+    const imageCount = Array.isArray(event.images) ? event.images.length : 0;
+    const hasTicketLink = /^https?:\/\//i.test(String(event.ticketUrl || "").trim());
 
     return `
       <div class="event-item" data-id="${event.id}">
@@ -338,6 +455,8 @@ document.addEventListener("DOMContentLoaded", () => {
             <span class="tag" style="background: #f0f0f0; color: #666;">
               ${event.locationType === "map" ? "📍 Map" : "📝 Text"}
             </span>
+            ${hasTicketLink ? `<span class="tag" style="background:#ecfeff; color:#155e75;"><i class="fa-solid fa-ticket"></i> Tickets</span>` : ""}
+            ${imageCount > 0 ? `<span class="tag" style="background:#fff7ed; color:#9a3412;"><i class="fa-regular fa-image"></i> ${imageCount}</span>` : ""}
           </h4>
           <div class="event-meta">
             <span><i class="fa-regular fa-clock"></i> ${time}</span>
