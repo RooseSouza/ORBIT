@@ -7,6 +7,7 @@ import { toggleBookmark, getBookmarks, isBookmarked, updateBookmarkReminder } fr
 window.globalEventsStore = [];      
 window.currentFilteredEvents = [];  
 window.bookmarksStore = [];
+window.eventDataByKey = new Map();
 
 // --- FILTER STATE ---
 let currentFilters = {
@@ -18,6 +19,11 @@ let currentFilters = {
 
 let isGuestSession = localStorage.getItem('isOrbitGuest') === 'true';
 let isLogoutTransition = false;
+
+function isGoogleUser(user) {
+    if (!user || !Array.isArray(user.providerData)) return false;
+    return user.providerData.some((provider) => provider && provider.providerId === 'google.com');
+}
 
 document.addEventListener('DOMContentLoaded', () => {
     
@@ -74,6 +80,59 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentMonth = new Date().getMonth();
     let currentYear = new Date().getFullYear();
     const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+    // --- LOAD CUSTOM CATEGORIES ---
+    function loadCustomCategories() {
+        const saved = localStorage.getItem('orbitCustomCategories');
+        if (saved) {
+            try {
+                const customs = JSON.parse(saved);
+                customs.forEach(cat => {
+                    addCustomCategoryChip(cat.name, cat.keywords);
+                });
+            } catch (e) { console.error('Failed to load custom categories:', e); }
+        }
+    }
+
+    function addCustomCategoryChip(name, keywords) {
+        if (!categoryChips) return;
+        const exists = categoryChips.querySelector(`[data-cat="${name}"]`);
+        if (exists) return; // Don't add duplicates
+        
+        const btn = document.createElement('button');
+        btn.className = 'chip';
+        btn.dataset.cat = name;
+        btn.dataset.keywords = keywords;
+        btn.textContent = name.charAt(0).toUpperCase() + name.slice(1);
+        categoryChips.appendChild(btn);
+        
+        // Add listener to new chip
+        btn.addEventListener('click', (e) => {
+            if (e.target.closest('button') !== btn) return;
+            categoryChips.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+            btn.classList.add('active');
+            currentFilters.category = name;
+            currentFilters.categoryKeywords = keywords.split(',');
+            applyFilters();
+        });
+    }
+
+    function saveCustomCategories() {
+        const customs = [];
+        if (categoryChips) {
+            categoryChips.querySelectorAll('.chip').forEach(chip => {
+                const cat = chip.dataset.cat;
+                // Skip 'all', and predefined categories
+                if (cat && !['all', 'sports', 'music', 'festivals'].includes(cat)) {
+                    customs.push({ name: cat, keywords: chip.dataset.keywords });
+                }
+            });
+        }
+        localStorage.setItem('orbitCustomCategories', JSON.stringify(customs));
+    }
+
+    // Load custom categories on init
+    loadCustomCategories();
 
     function applyGuestModeUI() {
         const guestCardId = 'guest-access-card';
@@ -158,8 +217,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (bmContainer) loadBookmarksPage(bmContainer);
             } else {
                 if (eventsContainer) {
-                    if (user) fetchGoogleData();
-                    else fetchFirestoreOnly();
+                    if (user && isGoogleUser(user)) {
+                        fetchGoogleData();
+                    } else {
+                        fetchFirestoreOnly();
+                    }
                 }
             }
             if(preloader) preloader.classList.add('hide');
@@ -396,7 +458,19 @@ document.addEventListener('DOMContentLoaded', () => {
             querySnapshot.forEach((doc) => {
                 const data = doc.data();
                 if (new Date(data.date) >= new Date()) {
-                    events.push({ type: 'Public', id: doc.id, title: data.title, description: data.description || "Public Event", sortDate: data.date, isAllDay: false, color: colorCategory, locType: data.locationType || 'text', locValue: data.locationValue || '' });
+                    events.push({
+                        type: 'Public',
+                        id: doc.id,
+                        title: data.title,
+                        description: data.description || "Public Event",
+                        sortDate: data.date,
+                        isAllDay: false,
+                        color: colorCategory,
+                        locType: data.locationType || 'text',
+                        locValue: data.locationValue || '',
+                        ticketUrl: data.ticketUrl || '',
+                        images: Array.isArray(data.images) ? data.images : []
+                    });
                 }
             });
             return events;
@@ -528,6 +602,31 @@ document.addEventListener('DOMContentLoaded', () => {
             applyFilters();
         });
     }
+
+    // --- CUSTOM KEYWORD INPUT ---
+    const customKeywordInput = document.getElementById('customKeywordInput');
+    const addCustomKeywordBtn = document.getElementById('addCustomKeywordBtn');
+    if (addCustomKeywordBtn) {
+        addCustomKeywordBtn.addEventListener('click', () => {
+            const input = customKeywordInput?.value.trim().toLowerCase();
+            if (!input) return;
+            
+            // Check if already exists
+            if (categoryChips?.querySelector(`[data-cat="${input}"]`)) {
+                alert('Category already exists!');
+                return;
+            }
+            
+            addCustomCategoryChip(input, input); // Use the keyword itself as both name and keyword
+            customKeywordInput.value = '';
+            saveCustomCategories();
+        });
+        
+        // Allow Enter key to add
+        customKeywordInput?.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') addCustomKeywordBtn.click();
+        });
+    }
     if(openFilterModalBtn) openFilterModalBtn.addEventListener('click', () => { document.getElementById('filter-modal-overlay').classList.add('show'); });
     if(closeFilterBtn) closeFilterBtn.addEventListener('click', () => { document.getElementById('filter-modal-overlay').classList.remove('show'); });
     if(applyFiltersBtn) applyFiltersBtn.addEventListener('click', () => {
@@ -609,6 +708,40 @@ document.addEventListener('DOMContentLoaded', () => {
     // ==========================================
     // 4. RENDERING & REMINDERS
     // ==========================================
+    function safeDecode(value) {
+        const raw = String(value ?? '');
+        try {
+            return decodeURIComponent(raw);
+        } catch (_) {
+            return raw;
+        }
+    }
+
+    function normalizeImageUrls(rawImages, allowDataUrl = true) {
+        const list = Array.isArray(rawImages) ? rawImages : [];
+        const normalized = [];
+        const seen = new Set();
+
+        list.forEach((value) => {
+            const url = String(value || '').trim();
+            if (!url) return;
+            const isHttp = /^https?:\/\//i.test(url);
+            const isDataImage = /^data:image\//i.test(url);
+            if (!isHttp && !(allowDataUrl && isDataImage)) return;
+            if (seen.has(url)) return;
+            seen.add(url);
+            normalized.push(url);
+        });
+
+        return normalized.slice(0, 8);
+    }
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = String(text ?? '');
+        return div.innerHTML;
+    }
+
     async function renderMixedItems(items, targetContainer) {
         if (!targetContainer) return;
         
@@ -622,9 +755,10 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const bookmarkedEvents = isGuestSession ? [] : await getBookmarks();
         const bookmarkedIds = new Set(bookmarkedEvents.map(b => b.id));
+        window.eventDataByKey = new Map();
 
         let html = '';
-        items.forEach(item => {
+        items.forEach((item, idx) => {
             const startDate = new Date(item.sortDate);
             const day = String(startDate.getDate()).padStart(2, '0');
             const month = String(startDate.getMonth() + 1).padStart(2, '0');
@@ -642,33 +776,35 @@ document.addEventListener('DOMContentLoaded', () => {
             const daysStr = days.toString().padStart(2, '0');
             const hoursStr = hours.toString().padStart(2, '0');
             const shortDesc = item.description.length > 50 ? item.description.substring(0, 50) + "..." : item.description;
+            const imageUrls = normalizeImageUrls(item.images || [], true);
+            const thumbUrl = imageUrls[0] || '';
             
             let iconHTML = '';
             if (item.type === 'Task') iconHTML = '<i class="fa-solid fa-square-check" style="color:#666; margin-right:6px;"></i> ';
             if (item.type === 'Public') iconHTML = '<i class="fa-solid fa-earth-americas" style="color:#569aff; margin-right:6px;"></i> ';
             const borderClass = item.color === 'blue' ? 'card-blue' : 'card-green';
-            
-            const safeTitle = encodeURIComponent(item.title);
-            const safeDesc = encodeURIComponent(item.description);
-            const safeDateStr = encodeURIComponent(formattedDate + formattedTime);
-            const safeLocType = encodeURIComponent(item.locType || 'text');
-            const safeLocValue = encodeURIComponent(item.locValue || '');
 
             const activeClass = bookmarkedIds.has(item.id) ? 'active' : '';
             const iconClass = bookmarkedIds.has(item.id) ? 'fa-solid' : 'fa-regular';
-            const itemJson = btoa(unescape(encodeURIComponent(JSON.stringify(item))));
+            const itemKey = `${item.type || 'item'}-${item.id || idx}-${idx}`;
+            window.eventDataByKey.set(itemKey, item);
 
             const bookmarkButtonHtml = isGuestSession
                 ? ''
-                : `<button class="bookmark-btn ${activeClass}" data-event="${itemJson}" onclick="handleBookmarkClick(this, event)">
+                : `<button class="bookmark-btn ${activeClass}" data-event-key="${itemKey}" onclick="handleBookmarkClick(this, event)">
                         <i class="${iconClass} fa-bookmark"></i>
                    </button>`;
+
+            const thumbHtml = thumbUrl
+                ? `<div class="event-thumb"><img src="${thumbUrl}" alt="${escapeHtml(item.title || 'Event image')}"></div>`
+                : '';
 
             html += `
                 <div class="event-card ${borderClass}">
                     ${bookmarkButtonHtml}
+                    ${thumbHtml}
                     <div class="clickable-area" 
-                         data-event="${itemJson}"
+                         data-event-key="${itemKey}"
                          onclick="handleCardClick(this)"
                          style="cursor:pointer;">
                         <div class="event-info">
@@ -697,7 +833,9 @@ document.addEventListener('DOMContentLoaded', () => {
     window.handleBookmarkClick = async function(btn, e) {
         if (isGuestSession) return;
         e.stopPropagation(); 
-        const item = JSON.parse(decodeURIComponent(escape(atob(btn.dataset.event))));
+        const itemKey = btn.dataset.eventKey;
+        const item = window.eventDataByKey.get(itemKey);
+        if (!item) return;
         const isAdded = await toggleBookmark(item);
         const icon = btn.querySelector('i');
         if (isAdded) {
@@ -710,14 +848,26 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     window.handleCardClick = function(div) {
-        const item = JSON.parse(decodeURIComponent(escape(atob(div.dataset.event))));
+        const itemKey = div.dataset.eventKey;
+        const item = window.eventDataByKey.get(itemKey);
+        if (!item) return;
         const dt = new Date(item.sortDate);
         const day = String(dt.getDate()).padStart(2, '0');
         const month = String(dt.getMonth() + 1).padStart(2, '0');
         const year = dt.getFullYear();
         const dateStr = `${day}/${month}/${year}` + (item.isAllDay ? "" : " at " + dt.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}));
 
-        openModal(item.title, item.description, dateStr, item.sortDate, item.locType, item.locValue, item.type);
+        openModal(
+            item.title,
+            item.description,
+            dateStr,
+            item.sortDate,
+            item.locType,
+            item.locValue,
+            item.type,
+            JSON.stringify(item.images || []),
+            encodeURIComponent(item.ticketUrl || '')
+        );
     };
 
     function checkReminders(bookmarkedEvents) {
@@ -773,25 +923,123 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    function renderModalCarousel(imageUrls) {
+        const container = document.getElementById('modal-image-container');
+        if (!container) return;
+
+        container.innerHTML = '';
+        if (!imageUrls.length) return;
+
+        let currentIndex = 0;
+        const wrapper = document.createElement('div');
+        wrapper.className = 'modal-image-carousel';
+
+        const img = document.createElement('img');
+        img.className = 'modal-carousel-image';
+        img.alt = 'Event image';
+        wrapper.appendChild(img);
+
+        const prevBtn = document.createElement('button');
+        prevBtn.className = 'modal-carousel-btn prev';
+        prevBtn.type = 'button';
+        prevBtn.innerHTML = '<i class="fa-solid fa-chevron-left"></i>';
+
+        const nextBtn = document.createElement('button');
+        nextBtn.className = 'modal-carousel-btn next';
+        nextBtn.type = 'button';
+        nextBtn.innerHTML = '<i class="fa-solid fa-chevron-right"></i>';
+
+        const footer = document.createElement('div');
+        footer.className = 'modal-carousel-footer';
+        const counter = document.createElement('span');
+        counter.className = 'modal-carousel-counter';
+        footer.appendChild(counter);
+
+        const dots = document.createElement('div');
+        dots.className = 'modal-carousel-dots';
+        imageUrls.forEach((_, idx) => {
+            const dot = document.createElement('button');
+            dot.type = 'button';
+            dot.className = 'modal-carousel-dot';
+            dot.addEventListener('click', () => {
+                currentIndex = idx;
+                renderCurrent();
+            });
+            dots.appendChild(dot);
+        });
+        footer.appendChild(dots);
+
+        const renderCurrent = () => {
+            img.src = imageUrls[currentIndex];
+            counter.textContent = `${currentIndex + 1} / ${imageUrls.length}`;
+            dots.querySelectorAll('.modal-carousel-dot').forEach((dot, idx) => {
+                dot.classList.toggle('active', idx === currentIndex);
+            });
+            const showControls = imageUrls.length > 1;
+            prevBtn.style.display = showControls ? 'inline-flex' : 'none';
+            nextBtn.style.display = showControls ? 'inline-flex' : 'none';
+        };
+
+        prevBtn.addEventListener('click', () => {
+            currentIndex = (currentIndex - 1 + imageUrls.length) % imageUrls.length;
+            renderCurrent();
+        });
+
+        nextBtn.addEventListener('click', () => {
+            currentIndex = (currentIndex + 1) % imageUrls.length;
+            renderCurrent();
+        });
+
+        wrapper.appendChild(prevBtn);
+        wrapper.appendChild(nextBtn);
+        container.appendChild(wrapper);
+        container.appendChild(footer);
+        renderCurrent();
+    }
+
     // --- MODAL LOGIC ---
-    window.openModal = function(title, desc, dateStr, rawIsoDate, locType, locValue, itemType) {
+    window.openModal = function(title, desc, dateStr, rawIsoDate, locType, locValue, itemType, imagesPayload, ticketUrlPayload) {
         if(!modalOverlay) return;
-        modalTitle.innerText = decodeURIComponent(title);
-        modalDesc.innerText = decodeURIComponent(desc) || "No description.";
-        modalDate.innerText = decodeURIComponent(dateStr);
+        const dTitle = safeDecode(title);
+        const dDesc = safeDecode(desc);
+        const dDate = safeDecode(dateStr);
+        const dLocValue = safeDecode(locValue);
+        const dLocType = safeDecode(locType);
+        const dTicketUrl = safeDecode(ticketUrlPayload || '');
+        const safeTicketUrl = /^https?:\/\//i.test(dTicketUrl) ? dTicketUrl : '';
+
+        let decodedImages = [];
+        try {
+            decodedImages = JSON.parse(safeDecode(imagesPayload || '[]'));
+        } catch (_) {
+            decodedImages = [];
+        }
+        const imageUrls = normalizeImageUrls(decodedImages, true);
+
+        modalTitle.innerText = dTitle;
+        modalDesc.innerText = dDesc || "No description.";
+        modalDate.innerText = dDate;
+        renderModalCarousel(imageUrls);
+
         const locContainer = document.getElementById('modal-location-container');
         if (locContainer) {
             locContainer.innerHTML = "";
-            const dLocValue = decodeURIComponent(locValue);
-            const dLocType = decodeURIComponent(locType);
-            if (dLocType === 'map' && dLocValue && dLocValue !== 'undefined') {
-                locContainer.innerHTML = `<iframe src="${dLocValue}" width="100%" height="250" style="border:0; border-radius:12px;" allowfullscreen="" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>`;
+            const safeMapSrc = /^https?:\/\//i.test(dLocValue) ? dLocValue : '';
+            if (dLocType === 'map' && safeMapSrc && dLocValue !== 'undefined') {
+                locContainer.innerHTML = `<iframe src="${safeMapSrc}" width="100%" height="250" style="border:0; border-radius:12px;" allowfullscreen="" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>`;
             } else if (dLocValue && dLocValue !== 'undefined' && dLocValue !== "") {
-                locContainer.innerHTML = `<div class="modal-location-card"><i class="fa-solid fa-location-dot"></i><span>${dLocValue}</span></div>`;
+                locContainer.innerHTML = `<div class="modal-location-card"><i class="fa-solid fa-location-dot"></i><span>${escapeHtml(dLocValue)}</span></div>`;
             }
         }
         const gcalBtn = document.getElementById('add-to-gcal-btn');
+        const ticketContainer = document.getElementById('modal-ticket-container');
         const isGoogleCalendarEvent = itemType === 'Event';
+
+        if (ticketContainer) {
+            ticketContainer.innerHTML = safeTicketUrl
+                ? `<a href="${safeTicketUrl}" target="_blank" rel="noopener noreferrer" class="gcal-add-btn" style="background:#fff7ed;color:#9a3412;border:1px solid #fdba74;"><i class="fa-solid fa-ticket" style="margin-right:8px;"></i>Book Tickets</a>`
+                : '';
+        }
 
         if (gcalBtn) {
             gcalBtn.style.display = isGoogleCalendarEvent ? 'none' : 'inline-flex';
@@ -801,7 +1049,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const startDt = new Date(rawIsoDate);
             const endDt = new Date(startDt.getTime() + 60 * 60 * 1000);
             const fmt = d => d.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
-            gcalBtn.href = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(decodeURIComponent(title))}&dates=${fmt(startDt)}/${fmt(endDt)}&details=${encodeURIComponent(decodeURIComponent(desc))}&location=${encodeURIComponent(decodeURIComponent(locValue))}`;
+            gcalBtn.href = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(dTitle)}&dates=${fmt(startDt)}/${fmt(endDt)}&details=${encodeURIComponent(dDesc)}&location=${encodeURIComponent(dLocValue)}`;
         }
         modalOverlay.classList.add('show');
         document.body.classList.add('modal-open');
@@ -825,7 +1073,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const icon = item.type === 'Task' ? 'Task' : (item.type === 'Public' ? 'Public' : 'Event');
                 const dt = new Date(item.sortDate); const timeStr = item.isAllDay ? "All Day" : dt.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}); const safeDateStr = `${dateString} at ${timeStr}`; const colorBorder = item.color === 'blue' ? 'border-blue' : 'border-green';
                 const div = document.createElement('div'); div.className = `day-event-item ${colorBorder}`; div.innerHTML = `<h4>${item.title}</h4><p>${timeStr} • ${icon}</p>`;
-                div.addEventListener('click', () => { closeDayModal(); setTimeout(() => { openModal(encodeURIComponent(item.title), encodeURIComponent(item.description), encodeURIComponent(safeDateStr), item.sortDate, encodeURIComponent(item.locType), encodeURIComponent(item.locValue), item.type); }, 300); });
+                div.addEventListener('click', () => { closeDayModal(); setTimeout(() => { openModal(encodeURIComponent(item.title), encodeURIComponent(item.description), encodeURIComponent(safeDateStr), item.sortDate, encodeURIComponent(item.locType), encodeURIComponent(item.locValue), item.type, encodeURIComponent(JSON.stringify(item.images || [])), encodeURIComponent(item.ticketUrl || '')); }, 300); });
                 dayEventsList.appendChild(div);
             });
         }
@@ -856,7 +1104,14 @@ document.addEventListener('DOMContentLoaded', () => {
             
             if (dayEvents.length > 0) {
                 const lineContainer = document.createElement('div'); lineContainer.className = "cal-event-container";
-                dayEvents.slice(0, 3).forEach(e => { const line = document.createElement('div'); line.className = `cal-line ${e.color}`; lineContainer.appendChild(line); });
+                dayEvents.slice(0, 3).forEach(e => {
+                    const line = document.createElement('div');
+                    line.className = `cal-line ${e.color}`;
+                    const label = document.createElement('span');
+                    label.textContent = e.title || 'Untitled';
+                    line.appendChild(label);
+                    lineContainer.appendChild(line);
+                });
                 if (dayEvents.length > 3) { const more = document.createElement('span'); more.style.fontSize = "10px"; more.style.color = "#888"; more.style.paddingLeft = "4px"; more.innerText = `+${dayEvents.length - 3}`; lineContainer.appendChild(more); }
                 dayDiv.appendChild(lineContainer);
             }
@@ -873,7 +1128,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const btnCalendarView = document.getElementById('btnCalendarView');
         const listViewContent = document.getElementById('listViewContent');
         const calendarViewContent = document.getElementById('calendarViewContent');
-        const timePeriodDropdown = document.getElementById('timePeriodDropdown');
         const calMonthSelect = document.getElementById('calMonthSelect');
         const calYearSelect = document.getElementById('calYearSelect');
         const prevMonthBtn = document.getElementById('prevMonth');
@@ -885,12 +1139,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 btnListView.classList.add('active'); btnCalendarView.classList.remove('active');
                 calendarViewContent.style.opacity = '0';
                 setTimeout(() => { calendarViewContent.classList.add('view-hidden'); listViewContent.classList.remove('view-hidden'); void listViewContent.offsetWidth; listViewContent.style.opacity = '1'; }, 200);
-                if(timePeriodDropdown) timePeriodDropdown.style.display = 'inline-block';
             } else {
                 btnCalendarView.classList.add('active'); btnListView.classList.remove('active');
                 listViewContent.style.opacity = '0';
                 setTimeout(() => { listViewContent.classList.add('view-hidden'); calendarViewContent.classList.remove('view-hidden'); void calendarViewContent.offsetWidth; calendarViewContent.style.opacity = '1'; renderCalendar(currentMonth, currentYear); }, 200);
-                if(timePeriodDropdown) timePeriodDropdown.style.display = 'none';
             }
         }
         btnListView.addEventListener('click', () => switchView('list'));

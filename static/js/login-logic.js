@@ -1,4 +1,4 @@
-import { signInWithPopup, onAuthStateChanged, GoogleAuthProvider } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+import { signInWithPopup, signInWithEmailAndPassword, onAuthStateChanged, GoogleAuthProvider } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import { auth, provider } from "/static/js/firebase-config.js";
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -6,6 +6,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const loadingBar = document.getElementById('loadingBar');
     const loadingFill = document.querySelector('.loading-fill');
     const guestBtn = document.getElementById('guestBtn');
+    const emailInput = document.getElementById('emailInput');
+    const passwordInput = document.getElementById('passwordInput');
+    const emailLoginBtn = document.getElementById('emailLoginBtn');
     const preloader = document.getElementById('app-preloader');
     const loginStatus = document.getElementById('loginStatus');
     let loginFlowStarted = false;
@@ -62,6 +65,44 @@ document.addEventListener('DOMContentLoaded', () => {
         setTimeout(() => {
             window.location.href = '/home';
         }, 950);
+    }
+
+    async function runEmailLogin() {
+        const email = (emailInput?.value || '').trim();
+        const password = passwordInput?.value || '';
+
+        if (!email || !password) {
+            setStatus('Please enter your email and password.', 'warn');
+            return;
+        }
+
+        localStorage.removeItem('isOrbitGuest');
+        localStorage.removeItem('googleCalendarToken');
+        loginFlowStarted = true;
+        setStatus('Signing in with email...', 'info');
+        startSlowProgress();
+
+        if (emailLoginBtn) emailLoginBtn.disabled = true;
+        if (loginBtn) loginBtn.style.display = 'none';
+
+        try {
+            await signInWithEmailAndPassword(auth, email, password);
+            runLoginTransition();
+        } catch (error) {
+            console.error('Email Login Error:', error);
+            loginFlowStarted = false;
+            transitionTriggered = false;
+            stopSlowProgress();
+            if (loadingFill) loadingFill.style.width = '0%';
+            if (loadingBar) loadingBar.style.display = 'none';
+            if (emailLoginBtn) emailLoginBtn.disabled = false;
+            if (loginBtn) loginBtn.style.display = 'flex';
+            if (error && error.code === 'auth/operation-not-allowed') {
+                setStatus('Email login is disabled. Admin must enable Email/Password in Firebase Auth > Sign-in method.', 'error');
+            } else {
+                setStatus(`Login failed: ${error.message}`, 'error');
+            }
+        }
     }
 
     function runGuestTransition() {
@@ -144,6 +185,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else {
                     setStatus(`Login failed: ${error.message}`, 'error');
                 }
+            }
+        });
+    }
+
+    if (emailLoginBtn) {
+        emailLoginBtn.addEventListener('click', async (e) => {
+            e.preventDefault();
+            await runEmailLogin();
+        });
+    }
+
+    if (passwordInput) {
+        passwordInput.addEventListener('keydown', async (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                await runEmailLogin();
             }
         });
     }

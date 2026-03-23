@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Create Account - Orbit</title>
+    <link rel="icon" type="image/png" href="/static/images/Orbitlogo.png">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script type="module" src="/static/js/create-account-logic.js"></script>
+</head>
+
+<body>
+    <div id="app-preloader"><i class="fa-solid fa-circle-notch fa-spin"></i></div>
+
+    <div id="dynamic-bg"></div>
+
+    <div id="login-view">
+        <div class="card">
+            <div class="header-section">
+                <div class="welcome-text">Create your</div>
+                <div class="logo-container">
+                    <img src="/static/images/Orbitlogo.png" class="orbit-logo-img" />
+                </div>
+                <div class="tagline">Start tracking events with your account</div>
+            </div>
+
+            <div class="auth-section">
+                <div class="login-prompt">Create Account</div>
+
+                <div class="auth-form">
+                    <input type="email" id="emailInput" class="auth-input" placeholder="Email" autocomplete="email">
+                    <input type="password" id="passwordInput" class="auth-input" placeholder="Password" autocomplete="new-password">
+                    <input type="password" id="confirmPasswordInput" class="auth-input" placeholder="Confirm Password" autocomplete="new-password">
+                    <button type="button" class="auth-primary-btn" id="createAccountBtn">Create Account</button>
+                </div>
+
+                <div id="loadingBar" class="loading-container" style="display: none;">
+                    <div class="loading-fill"></div>
+                </div>
+
+                <div id="loginStatus" class="login-status" aria-live="polite"></div>
+
+                <div class="footer-link">
+                    Already have an account? <a href="/">Log In</a>
+                    <br><br>
+                    <a href="/admin" style="font-size: 12px; color: #888; text-decoration: none;">Admin Access</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>
