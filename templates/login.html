@@ -33,8 +33,10 @@
                 <div class="login-prompt">Log in to Continue.</div>
 
                 <div class="auth-form">
-                    <input type="email" id="emailInput" class="auth-input" placeholder="Email" autocomplete="email">
-                    <input type="password" id="passwordInput" class="auth-input" placeholder="Password" autocomplete="current-password">
+                    <input type="email" id="emailInput" class="auth-input" placeholder="Email" autocomplete="email" required maxlength="254" inputmode="email">
+                    <div id="emailError" class="auth-field-error" aria-live="polite"></div>
+                    <input type="password" id="passwordInput" class="auth-input" placeholder="Password" autocomplete="current-password" required minlength="6" maxlength="128">
+                    <div id="passwordError" class="auth-field-error" aria-live="polite"></div>
                     <button type="button" class="auth-primary-btn" id="emailLoginBtn">Log in with Email</button>
                 </div>
 
@@ -66,9 +68,11 @@
 
                 <!-- Inside templates/login.html -->
                 <div class="footer-link">
-                    <a href="/create-account">Create Account</a>
-                    <br><br>
-                    Or <a href="#" id="guestBtn">Continue as Guest</a>
+                    <div class="footer-actions">
+                        <a href="/create-account">Create Account</a>
+                        <span class="footer-separator">|</span>
+                        <a href="#" id="guestBtn">Continue as Guest</a>
+                    </div>
                     <br><br>
                     <!-- NEW ADMIN LINK -->
                     <a href="/admin" style="font-size: 12px; color: #888; text-decoration: none;">Admin Access</a>

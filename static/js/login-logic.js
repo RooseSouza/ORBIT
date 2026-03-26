@@ -8,6 +8,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const guestBtn = document.getElementById('guestBtn');
     const emailInput = document.getElementById('emailInput');
     const passwordInput = document.getElementById('passwordInput');
+    const emailErrorEl = document.getElementById('emailError');
+    const passwordErrorEl = document.getElementById('passwordError');
     const emailLoginBtn = document.getElementById('emailLoginBtn');
     const preloader = document.getElementById('app-preloader');
     const loginStatus = document.getElementById('loginStatus');
@@ -15,10 +17,39 @@ document.addEventListener('DOMContentLoaded', () => {
     let transitionTriggered = false;
     let progressTimer = null;
 
+    const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+    function validateEmail(email) {
+        if (!email) return 'Please enter your email address.';
+        if (!EMAIL_REGEX.test(email)) return 'Please enter a valid email address.';
+        if (email.length > 254) return 'Email is too long.';
+        return null;
+    }
+
+    function validateLoginPassword(password) {
+        if (!password) return 'Please enter your password.';
+        if (password.length < 6) return 'Password must be at least 6 characters.';
+        if (password.length > 128) return 'Password is too long.';
+        return null;
+    }
+
     function setStatus(message, type = 'info') {
         if (!loginStatus) return;
         loginStatus.textContent = message || '';
         loginStatus.className = `login-status ${type}`;
+    }
+
+    function setFieldError(inputEl, errorEl, message) {
+        if (errorEl) {
+            errorEl.textContent = message || '';
+            errorEl.classList.toggle('show', !!message);
+        }
+        if (inputEl) inputEl.classList.toggle('input-error', !!message);
+    }
+
+    function clearFieldErrors() {
+        setFieldError(emailInput, emailErrorEl, '');
+        setFieldError(passwordInput, passwordErrorEl, '');
     }
 
     function startSlowProgress() {
@@ -68,13 +99,23 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function runEmailLogin() {
-        const email = (emailInput?.value || '').trim();
+        clearFieldErrors();
+        const email = (emailInput?.value || '').trim().toLowerCase();
         const password = passwordInput?.value || '';
 
-        if (!email || !password) {
-            setStatus('Please enter your email and password.', 'warn');
+        const emailError = validateEmail(email);
+        if (emailError) {
+            setFieldError(emailInput, emailErrorEl, emailError);
             return;
         }
+
+        const passwordError = validateLoginPassword(password);
+        if (passwordError) {
+            setFieldError(passwordInput, passwordErrorEl, passwordError);
+            return;
+        }
+
+        setStatus('', 'info');
 
         localStorage.removeItem('isOrbitGuest');
         localStorage.removeItem('googleCalendarToken');
@@ -99,10 +140,27 @@ document.addEventListener('DOMContentLoaded', () => {
             if (loginBtn) loginBtn.style.display = 'flex';
             if (error && error.code === 'auth/operation-not-allowed') {
                 setStatus('Email login is disabled. Admin must enable Email/Password in Firebase Auth > Sign-in method.', 'error');
+            } else if (error && (error.code === 'auth/invalid-credential' || error.code === 'auth/invalid-login-credentials')) {
+                setFieldError(emailInput, emailErrorEl, 'Invalid email or password.');
+                setFieldError(passwordInput, passwordErrorEl, 'Invalid email or password.');
+            } else if (error && error.code === 'auth/invalid-email') {
+                setFieldError(emailInput, emailErrorEl, 'Please enter a valid email address.');
             } else {
                 setStatus(`Login failed: ${error.message}`, 'error');
             }
         }
+    }
+
+    if (emailInput) {
+        emailInput.addEventListener('input', () => {
+            setFieldError(emailInput, emailErrorEl, '');
+        });
+    }
+
+    if (passwordInput) {
+        passwordInput.addEventListener('input', () => {
+            setFieldError(passwordInput, passwordErrorEl, '');
+        });
     }
 
     function runGuestTransition() {

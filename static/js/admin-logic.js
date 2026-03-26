@@ -8,6 +8,7 @@ import {
   getFirestore,
   collection,
   addDoc,
+  updateDoc,
   getDocs,
   deleteDoc,
   doc,
@@ -37,11 +38,40 @@ document.addEventListener("DOMContentLoaded", () => {
   const imageFileInput = document.getElementById("evtImageFiles");
   const imageLinksInput = document.getElementById("evtImageLinks");
   const imagePreview = document.getElementById("evtImagePreview");
+  const formModeTitle = document.getElementById("formModeTitle");
+  const editModeBanner = document.getElementById("editModeBanner");
+  const cancelEditBtn = document.getElementById("cancelEditBtn");
+  const secondaryCancelEditBtn = document.getElementById("secondaryCancelEditBtn");
 
   // Event details: delegated click handling so dynamic cards always work.
   if (listDiv) {
     listDiv.addEventListener("click", (e) => {
-      if (e.target.closest(".btn-delete") || e.target.closest(".event-actions")) return;
+      const deleteBtn = e.target.closest(".btn-delete");
+      if (deleteBtn) {
+        const eventId = deleteBtn.getAttribute("data-id");
+        const eventData = adminEventsById.get(eventId);
+        if (eventData) {
+          showDeleteModal(eventId, eventData.title || "Untitled Event");
+        }
+        return;
+      }
+
+      const editBtn = e.target.closest(".btn-edit");
+      if (editBtn) {
+        const eventId = editBtn.getAttribute("data-id");
+        const eventData = adminEventsById.get(eventId);
+        if (!eventData) return;
+
+        if (new Date(eventData.date) <= new Date()) {
+          showToast("Only upcoming events can be edited.", "danger");
+          return;
+        }
+
+        startEditingEvent(eventData);
+        return;
+      }
+
+      if (e.target.closest(".event-actions")) return;
       const card = e.target.closest(".event-item");
       if (!card) return;
       const eventId = card.getAttribute("data-id");
@@ -58,6 +88,8 @@ document.addEventListener("DOMContentLoaded", () => {
   let datePicker = null;
   const MAX_EVENT_IMAGES = 8;
   let uploadedImageDataUrls = [];
+  let existingEventImages = [];
+  let editingEventId = null;
 
   function normalizeImageUrls(urls, allowDataUrl = false) {
     const list = Array.isArray(urls) ? urls : [];
@@ -105,21 +137,151 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function getCombinedImageUrls() {
     const links = parseImageLinksInput(imageLinksInput?.value || "");
-    return normalizeImageUrls([...uploadedImageDataUrls, ...links], true);
+    return normalizeImageUrls([...existingEventImages, ...uploadedImageDataUrls, ...links], true);
   }
 
   function renderImagePreview() {
     if (!imagePreview) return;
     const images = getCombinedImageUrls();
+    const existingSet = new Set(existingEventImages);
+    const uploadedSet = new Set(uploadedImageDataUrls);
+
     if (!images.length) {
       imagePreview.innerHTML = "";
       return;
     }
 
     imagePreview.innerHTML = images
-      .map((src) => `<div class="image-preview-item"><img src="${src}" alt="Event image preview"></div>`)
+      .map((src) => {
+        const isExisting = existingSet.has(src);
+        const isUploaded = uploadedSet.has(src);
+        const type = isExisting ? "existing" : isUploaded ? "uploaded" : "linked";
+        const label = isExisting ? "saved" : isUploaded ? "new" : "link";
+        const canRemove = isExisting || isUploaded;
+
+        return `<div class="image-preview-item">
+          <img src="${src}" alt="Event image preview">
+          <span class="image-preview-label">${label}</span>
+          ${canRemove ? `<button type="button" class="image-preview-remove" data-image-type="${type}" data-image-src="${encodeURIComponent(src)}" title="Remove image"><i class="fa-solid fa-xmark"></i></button>` : ""}
+        </div>`;
+      })
       .join("");
   }
+
+  if (imagePreview) {
+    imagePreview.addEventListener("click", (e) => {
+      const removeBtn = e.target.closest(".image-preview-remove");
+      if (!removeBtn) return;
+
+      const imageType = removeBtn.getAttribute("data-image-type");
+      const encodedSrc = removeBtn.getAttribute("data-image-src") || "";
+      const src = decodeURIComponent(encodedSrc);
+
+      if (imageType === "existing") {
+        existingEventImages = existingEventImages.filter((img) => img !== src);
+      } else if (imageType === "uploaded") {
+        uploadedImageDataUrls = uploadedImageDataUrls.filter((img) => img !== src);
+        if (imageFileInput) {
+          imageFileInput.value = "";
+        }
+      }
+
+      renderImagePreview();
+    });
+  }
+
+  function setFormModeCreate() {
+    editingEventId = null;
+    if (formModeTitle) {
+      formModeTitle.innerHTML = '<i class="fa-solid fa-calendar-plus"></i> Create Public Event';
+    }
+    if (editModeBanner) editModeBanner.style.display = "none";
+    if (secondaryCancelEditBtn) secondaryCancelEditBtn.style.display = "none";
+    if (addBtn) addBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Publish Event';
+  }
+
+  function setFormModeEdit() {
+    if (formModeTitle) {
+      formModeTitle.innerHTML = '<i class="fa-solid fa-pen-to-square"></i> Edit Upcoming Event';
+    }
+    if (editModeBanner) editModeBanner.style.display = "flex";
+    if (secondaryCancelEditBtn) secondaryCancelEditBtn.style.display = "inline-flex";
+    if (addBtn) addBtn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Save Changes';
+  }
+
+  function clearEventForm() {
+    document.getElementById("evtTitle").value = "";
+    document.getElementById("evtDesc").value = "";
+    if (datePicker) {
+      datePicker.clear();
+    } else if (dateInput) {
+      dateInput.value = "";
+    }
+    document.getElementById("evtLocText").value = "";
+    document.getElementById("evtLocMap").value = "";
+    document.getElementById("evtTicketUrl").value = "";
+    if (imageFileInput) imageFileInput.value = "";
+    if (imageLinksInput) imageLinksInput.value = "";
+    uploadedImageDataUrls = [];
+    existingEventImages = [];
+    renderImagePreview();
+
+    const textRadio = document.querySelector('input[name="locType"][value="text"]');
+    if (textRadio) textRadio.checked = true;
+    groupText.style.display = "block";
+    groupMap.style.display = "none";
+  }
+
+  function resetFormToCreateMode() {
+    clearEventForm();
+    setFormModeCreate();
+  }
+
+  function startEditingEvent(eventData) {
+    editingEventId = eventData.id;
+    setFormModeEdit();
+
+    document.getElementById("evtTitle").value = eventData.title || "";
+    document.getElementById("evtDesc").value = eventData.description || "";
+    document.getElementById("evtTicketUrl").value = eventData.ticketUrl || "";
+
+    const rawDate = eventData.date ? new Date(eventData.date) : null;
+    if (rawDate && !Number.isNaN(rawDate.getTime())) {
+      if (datePicker) {
+        datePicker.setDate(rawDate, true);
+      } else if (dateInput) {
+        dateInput.value = rawDate.toISOString().slice(0, 16);
+      }
+    }
+
+    const isMap = eventData.locationType === "map";
+    const targetRadio = document.querySelector(`input[name="locType"][value="${isMap ? "map" : "text"}"]`);
+    if (targetRadio) targetRadio.checked = true;
+    groupText.style.display = isMap ? "none" : "block";
+    groupMap.style.display = isMap ? "block" : "none";
+
+    document.getElementById("evtLocText").value = !isMap ? eventData.locationValue || "" : "";
+    document.getElementById("evtLocMap").value = isMap ? eventData.locationValue || "" : "";
+
+    existingEventImages = normalizeImageUrls(eventData.images || [], true);
+    uploadedImageDataUrls = [];
+    if (imageFileInput) imageFileInput.value = "";
+    if (imageLinksInput) imageLinksInput.value = "";
+    renderImagePreview();
+
+    const formSection = document.querySelector(".form-section");
+    if (formSection) {
+      formSection.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }
+
+  [cancelEditBtn, secondaryCancelEditBtn].forEach((btn) => {
+    if (!btn) return;
+    btn.addEventListener("click", () => {
+      resetFormToCreateMode();
+      showToast("Edit cancelled.", "success");
+    });
+  });
 
   if (dateInput && typeof window.flatpickr === "function") {
     datePicker = window.flatpickr(dateInput, {
@@ -211,7 +373,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 
-  // 5. Add Event
+  // 5. Create / Edit Event
   addBtn.addEventListener("click", async () => {
     const title = document.getElementById("evtTitle").value;
     const desc = document.getElementById("evtDesc").value;
@@ -232,7 +394,6 @@ document.addEventListener("DOMContentLoaded", () => {
       locValue = document.getElementById("evtLocText").value;
     }
 
-    await syncUploadedImageFiles();
     const images = getCombinedImageUrls();
 
     if (!title || !date) {
@@ -241,10 +402,12 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     addBtn.disabled = true;
-    addBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Publishing...';
+    addBtn.innerHTML = editingEventId
+      ? '<i class="fa-solid fa-spinner fa-spin"></i> Saving...'
+      : '<i class="fa-solid fa-spinner fa-spin"></i> Publishing...';
 
     try {
-      await addDoc(collection(db, "public_events"), {
+      const payload = {
         title: title,
         description: desc,
         date: new Date(date).toISOString(),
@@ -253,33 +416,29 @@ document.addEventListener("DOMContentLoaded", () => {
         locationValue: locValue,
         ticketUrl,
         images,
-      });
+      };
 
-      showToast("Event published successfully!", "success");
-
-      // Clear form
-      document.getElementById("evtTitle").value = "";
-      document.getElementById("evtDesc").value = "";
-      if (datePicker) {
-        datePicker.clear();
-      } else if (dateInput) {
-        dateInput.value = "";
+      if (editingEventId) {
+        await updateDoc(doc(db, "public_events", editingEventId), payload);
+        showToast("Event updated successfully!", "success");
+      } else {
+        await addDoc(collection(db, "public_events"), payload);
+        showToast("Event published successfully!", "success");
       }
-      document.getElementById("evtLocText").value = "";
-      document.getElementById("evtLocMap").value = "";
-      document.getElementById("evtTicketUrl").value = "";
-      if (imageFileInput) imageFileInput.value = "";
-      if (imageLinksInput) imageLinksInput.value = "";
-      uploadedImageDataUrls = [];
-      renderImagePreview();
+
+      resetFormToCreateMode();
 
       loadEvents();
     } catch (e) {
       console.error("Error:", e);
-      showToast("Error adding event: " + e.message, "danger");
+      showToast((editingEventId ? "Error updating event: " : "Error adding event: ") + e.message, "danger");
     } finally {
       addBtn.disabled = false;
-      addBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Publish Event';
+      if (editingEventId) {
+        addBtn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Save Changes';
+      } else {
+        addBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Publish Event';
+      }
     }
   });
 
@@ -320,7 +479,6 @@ document.addEventListener("DOMContentLoaded", () => {
         `;
       } else {
         listDiv.innerHTML = events.map((event) => renderEventCard(event)).join("");
-        attachDeleteListeners();
       }
     } catch (e) {
       console.error("Error loading events:", e);
@@ -466,7 +624,8 @@ document.addEventListener("DOMContentLoaded", () => {
           ${event.description ? `<p style="margin-top: 8px; font-size: 13px; color: #64748b;">${escapeHtml(event.description)}</p>` : ""}
         </div>
         <div class="event-actions">
-          <button class="btn-icon btn-icon-danger btn-delete" data-id="${event.id}" data-title="${escapeHtml(event.title)}">
+          ${isUpcoming ? `<button class="btn-icon btn-edit" data-id="${event.id}" title="Edit upcoming event"><i class="fa-solid fa-pen"></i></button>` : ""}
+          <button class="btn-icon btn-icon-danger btn-delete" data-id="${event.id}">
             <i class="fa-solid fa-trash"></i>
           </button>
         </div>
@@ -474,32 +633,7 @@ document.addEventListener("DOMContentLoaded", () => {
     `;
   }
 
-  // 8. Attach Delete Listeners - THIS IS THE KEY FUNCTION
-  function attachDeleteListeners() {
-    const deleteButtons = document.querySelectorAll(".btn-delete");
-    
-    deleteButtons.forEach((btn) => {
-      // Remove any existing listeners first
-      btn.replaceWith(btn.cloneNode(true));
-    });
-
-    // Re-select after cloning
-    document.querySelectorAll(".btn-delete").forEach((btn) => {
-      btn.addEventListener("click", function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        
-        const eventId = this.getAttribute("data-id");
-        const eventTitle = this.getAttribute("data-title");
-        
-        console.log("Delete clicked for:", eventId, eventTitle); // Debug log
-        
-        showDeleteModal(eventId, eventTitle);
-      });
-    });
-  }
-
-  // 9. Show Delete Modal
+  // 8. Show Delete Modal
   function showDeleteModal(eventId, eventTitle) {
     // Remove existing modal
     const existingModal = document.getElementById("delete-modal");
@@ -560,7 +694,7 @@ document.addEventListener("DOMContentLoaded", () => {
     document.addEventListener("keydown", escHandler);
   }
 
-  // 10. Handle Delete
+  // 9. Handle Delete
   async function handleDelete(eventId, modal) {
     const confirmBtn = document.getElementById("modal-confirm");
     confirmBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Deleting...';
@@ -569,6 +703,11 @@ document.addEventListener("DOMContentLoaded", () => {
     try {
       // Delete from Firebase
       await deleteDoc(doc(db, "public_events", eventId));
+      adminEventsById.delete(eventId);
+
+      if (editingEventId === eventId) {
+        resetFormToCreateMode();
+      }
 
       // Animate out the event card
       const eventItem = document.querySelector(`.event-item[data-id="${eventId}"]`);
@@ -608,13 +747,13 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // 11. Close Modal
+  // 10. Close Modal
   function closeModal(modal) {
     modal.classList.remove("show");
     setTimeout(() => modal.remove(), 200);
   }
 
-  // 12. Update Event Count
+  // 11. Update Event Count
   function updateEventCount(count) {
     const eventCountEl = document.getElementById("event-count");
     if (eventCountEl) {
@@ -622,7 +761,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // 13. Toast Notification
+  // 12. Toast Notification
   function showToast(message, type = "success") {
     const existingToast = document.getElementById("toast");
     if (existingToast) existingToast.remove();
@@ -655,7 +794,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }, 3000);
   }
 
-  // 14. Escape HTML
+  // 13. Escape HTML
   function escapeHtml(text) {
     if (!text) return "";
     const div = document.createElement("div");

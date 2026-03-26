@@ -1,0 +1,25 @@
+{
+  "name": "orbit",
+  "version": "1.0.0",
+  "description": "Event calendar and organizer application with Firebase backend",
+  "scripts": {
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "test:frontend": "jest tests/frontend/",
+    "test:frontend:watch": "jest tests/frontend/ --watch"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "jest-environment-jsdom": "^29.7.0"
+  },
+  "keywords": [
+    "calendar",
+    "events",
+    "organizer",
+    "firebase",
+    "google-calendar"
+  ],
+  "author": "",
+  "license": "MIT"
+}
