@@ -23,3 +23,13 @@ env/
 # OS
 .DS_Store
 Thumbs.db
+
+# Testing
+coverage/
+htmlcov/
+.coverage
+*.cover
+.pytest_cache/
+node_modules/
+.jest_cache/
+__coverage__/

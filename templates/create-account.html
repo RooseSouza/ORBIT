@@ -30,9 +30,12 @@
                 <div class="login-prompt">Create Account</div>
 
                 <div class="auth-form">
-                    <input type="email" id="emailInput" class="auth-input" placeholder="Email" autocomplete="email">
-                    <input type="password" id="passwordInput" class="auth-input" placeholder="Password" autocomplete="new-password">
-                    <input type="password" id="confirmPasswordInput" class="auth-input" placeholder="Confirm Password" autocomplete="new-password">
+                    <input type="email" id="emailInput" class="auth-input" placeholder="Email" autocomplete="email" required maxlength="254" inputmode="email">
+                    <div id="emailError" class="auth-field-error" aria-live="polite"></div>
+                    <input type="password" id="passwordInput" class="auth-input" placeholder="Password" autocomplete="new-password" required minlength="8" maxlength="128" pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,128}" title="Use 8-128 characters with uppercase, lowercase, number, and special character.">
+                    <div id="passwordError" class="auth-field-error" aria-live="polite"></div>
+                    <input type="password" id="confirmPasswordInput" class="auth-input" placeholder="Confirm Password" autocomplete="new-password" required minlength="8" maxlength="128">
+                    <div id="confirmPasswordError" class="auth-field-error" aria-live="polite"></div>
                     <button type="button" class="auth-primary-btn" id="createAccountBtn">Create Account</button>
                 </div>
 

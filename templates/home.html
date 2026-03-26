@@ -6,8 +6,28 @@
     <!-- View Toggle -->
     <div class="view-toggle-container">
         <div class="view-toggle">
-            <button class="toggle-btn active" id="btnListView">📋 List</button>
-            <button class="toggle-btn" id="btnCalendarView">📅 Calendar</button>
+            <button class="toggle-btn active" id="btnListView">
+                <svg class="view-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                    <circle cx="5" cy="6" r="1.5"></circle>
+                    <line x1="9" y1="6" x2="19" y2="6"></line>
+                    <circle cx="5" cy="12" r="1.5"></circle>
+                    <line x1="9" y1="12" x2="19" y2="12"></line>
+                    <circle cx="5" cy="18" r="1.5"></circle>
+                    <line x1="9" y1="18" x2="19" y2="18"></line>
+                </svg>
+                <span>List View</span>
+            </button>
+            <button class="toggle-btn" id="btnCalendarView">
+                <svg class="view-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                    <rect x="3" y="4" width="18" height="17" rx="2"></rect>
+                    <line x1="8" y1="2.5" x2="8" y2="6"></line>
+                    <line x1="16" y1="2.5" x2="16" y2="6"></line>
+                    <line x1="3" y1="9" x2="21" y2="9"></line>
+                    <rect x="7" y="12" width="3" height="3" rx="0.5"></rect>
+                    <rect x="12" y="12" width="3" height="3" rx="0.5"></rect>
+                </svg>
+                <span>Calendar View</span>
+            </button>
         </div>
     </div>
 
@@ -17,7 +37,7 @@
         <div class="events-section">
             <div class="section-header">
                 <h2>Events</h2>
-                <div class="legend" aria-label="Event color legend">
+                <div id="listViewLegend" class="legend" aria-label="Event color legend">
                     <div class="legend-item">
                         <span class="dot green"></span>
                         <span>Your Events</span>
@@ -97,36 +117,55 @@
 
         <!-- CALENDAR VIEW -->
         <div id="calendarViewContent" class="view-hidden">
-            <div class="calendar-card calendar-fullwidth">
-                <div class="cal-header">
-                    <button class="cal-nav-btn" id="prevMonth"><i class="fa-solid fa-chevron-left"></i></button>
-                    <div class="cal-selectors">
-                        <button id="goToToday" class="cal-today-btn">Today</button>
-                        <select id="calMonthSelect" class="cal-select"></select>
-                        <select id="calYearSelect" class="cal-select"></select>
+            <div id="calendarSplitLayout" class="calendar-split-layout panel-hidden">
+                <div class="calendar-card calendar-fullwidth">
+                    <div class="cal-header">
+                        <button class="cal-nav-btn" id="prevMonth"><i class="fa-solid fa-chevron-left"></i></button>
+                        <div class="cal-selectors">
+                            <button id="goToToday" class="cal-today-btn">Today</button>
+                            <select id="calSourceSelect" class="cal-select" aria-label="Calendar event source">
+                                <option value="all">All Events</option>
+                                <option value="public">Public Events</option>
+                                <option value="my">My Events</option>
+                            </select>
+                            <select id="calMonthSelect" class="cal-select"></select>
+                            <select id="calYearSelect" class="cal-select"></select>
+                        </div>
+                        <button class="cal-nav-btn" id="nextMonth"><i class="fa-solid fa-chevron-right"></i></button>
                     </div>
-                    <button class="cal-nav-btn" id="nextMonth"><i class="fa-solid fa-chevron-right"></i></button>
-                </div>
-                <div class="legend" aria-label="Event color legend">
-                    <div class="legend-item">
-                        <span class="dot green"></span>
-                        <span>Your Events</span>
+                    <div id="calendarViewLegend" class="legend" aria-label="Event color legend">
+                        <div class="legend-item">
+                            <span class="dot green"></span>
+                            <span>Your Events</span>
+                        </div>
+                        <div class="legend-item">
+                            <span class="dot blue"></span>
+                            <span>Public Events</span>
+                        </div>
                     </div>
-                    <div class="legend-item">
-                        <span class="dot blue"></span>
-                        <span>Public Events</span>
+                    <div class="cal-weekdays">
+                        <div>Su</div>
+                        <div>Mo</div>
+                        <div>Tu</div>
+                        <div>We</div>
+                        <div>Th</div>
+                        <div>Fr</div>
+                        <div>Sa</div>
                     </div>
+                    <div class="cal-grid" id="calendarGrid"></div>
                 </div>
-                <div class="cal-weekdays">
-                    <div>Su</div>
-                    <div>Mo</div>
-                    <div>Tu</div>
-                    <div>We</div>
-                    <div>Th</div>
-                    <div>Fr</div>
-                    <div>Sa</div>
-                </div>
-                <div class="cal-grid" id="calendarGrid"></div>
+
+                <aside id="calendar-day-panel" class="calendar-day-panel">
+                    <div class="calendar-day-panel-header">
+                        <h3 id="calendar-day-panel-title">Select a day</h3>
+                        <button id="calendar-day-panel-close" type="button" aria-label="Close day events panel">
+                            <i class="fa-solid fa-xmark"></i>
+                        </button>
+                    </div>
+                    <div id="calendar-day-events-list" class="day-events-container day-events-panel-list">
+                        <div class="calendar-day-empty">Click any date to view events for that day.</div>
+                    </div>
+                </aside>
             </div>
         </div>
 

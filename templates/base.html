@@ -29,15 +29,20 @@
                 <img src="/static/images/Orbitlogo.png" alt="Orbit Logo" class="nav-logo-img">
             </div>
 
+            <div class="nav-right-controls">
+                <button class="theme-top-toggle" id="themeTopToggle" type="button" aria-label="Toggle dark mode">
+                    <i class="fa-solid fa-moon" id="themeTopIcon"></i>
+                    <span id="themeTopLabel">Dark</span>
+                </button>
+            </div>
+
             <div class="profile-wrapper">
                 <div class="nav-profile" id="profileBtn"></div>
                 <div class="profile-menu" id="profileMenu">
-                    <!-- NEW ADMIN LINK -->
-                    <a href="/admin" style="text-decoration:none;">
-                        <div class="profile-item" style="color: inherit;">
-                            <i class="fa-solid fa-shield-halved"></i> <span>Admin Panel</span>
-                        </div>
-                    </a>
+                    <div class="profile-item profile-email-item" id="profileEmailItem">
+                        <i class="fa-solid fa-at"></i>
+                        <span id="profileEmailText">Signed in</span>
+                    </div>
 
                     <div class="profile-item" id="logoutBtn">
                         <i class="fa-solid fa-right-from-bracket"></i> <span>Logout</span>
@@ -69,10 +74,6 @@
                 <i class="fa-solid fa-moon" id="dark-mode-icon"></i>
                 <span id="dark-mode-label">Dark Mode</span>
             </li>
-            <li class="menu-item" id="notif-toggle" style="cursor:pointer;">
-                <i class="fa-solid fa-bell"></i>
-                <span>Notifications</span>
-            </li>
         </ul>
     </div>
 
@@ -82,12 +83,15 @@
     <!-- EVENT DETAILS MODAL (With Countdown AND Map) -->
     <div id="event-modal-overlay" class="modal-overlay">
         <div class="modal-card">
+            <button id="modal-bookmark-btn" class="bookmark-btn modal-bookmark-btn" aria-label="Toggle bookmark" type="button" style="display:none;">
+                <i class="fa-regular fa-bookmark"></i>
+            </button>
             <button id="close-modal-btn-inner">&times;</button>
 
             <div class="modal-header">
                 <h2 id="modal-title">Event Title</h2>
                 <div id="modal-meta">
-                    <span id="modal-date">Date</span> • <span id="modal-desc">Description</span>
+                    <span id="modal-date">Date</span> <span id="modal-meta-separator">•</span> <span id="modal-desc">Description</span>
                 </div>
             </div>
 
@@ -129,7 +133,7 @@
             <div id="modal-ticket-container" style="margin-top: 14px; width: 100%; text-align: center;"></div>
 
             <!-- 3. ADD TO GOOGLE CALENDAR -->
-            <div style="margin-top: 20px; text-align: center;">
+            <div id="modal-gcal-container" style="margin-top: 20px; text-align: center;">
                 <a id="add-to-gcal-btn" href="#" target="_blank" rel="noopener noreferrer" class="gcal-add-btn">
                     <i class="fa-brands fa-google" style="margin-right: 8px;"></i>Add to Google Calendar
                 </a>

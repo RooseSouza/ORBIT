@@ -19,6 +19,7 @@ let currentFilters = {
 
 let isGuestSession = localStorage.getItem('isOrbitGuest') === 'true';
 let isLogoutTransition = false;
+let canUseSourceSelector = false;
 
 function isGoogleUser(user) {
     if (!user || !Array.isArray(user.providerData)) return false;
@@ -39,6 +40,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const navProfile = document.querySelector('.nav-profile');
     const profileBtn = document.getElementById('profileBtn');
     const profileMenu = document.getElementById('profileMenu');
+    const profileEmailText = document.getElementById('profileEmailText');
     const logoutBtn = document.getElementById('logoutBtn');
     const navIcon = document.querySelector('.nav-icon');
     const sideMenu = document.getElementById('side-menu');
@@ -64,9 +66,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const filterSortBy = document.getElementById('filter-sort-by');
     const modalOverlay = document.getElementById('event-modal-overlay');
     const closeModalBtn = document.getElementById('close-modal-btn-inner');
+    const modalBookmarkBtn = document.getElementById('modal-bookmark-btn');
     const modalTitle = document.getElementById('modal-title');
     const modalDate = document.getElementById('modal-date');
+    const modalMetaSeparator = document.getElementById('modal-meta-separator');
     const modalDesc = document.getElementById('modal-desc');
+    const calendarSplitLayout = document.getElementById('calendarSplitLayout');
+    const calendarDayPanel = document.getElementById('calendar-day-panel');
+    const calendarDayPanelTitle = document.getElementById('calendar-day-panel-title');
+    const calendarDayEventsList = document.getElementById('calendar-day-events-list');
+    const calendarDayPanelCloseBtn = document.getElementById('calendar-day-panel-close');
     const dayModalOverlay = document.getElementById('day-view-modal');
     const closeDayBtn = document.getElementById('close-day-btn');
     const dayModalTitle = document.getElementById('day-modal-title');
@@ -76,6 +85,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const elMins = document.getElementById('cd-minutes');
     const elSecs = document.getElementById('cd-seconds');
     let countdownInterval = null;
+    let selectedCalendarDayCell = null;
+    let currentModalEvent = null;
 
     let currentMonth = new Date().getMonth();
     let currentYear = new Date().getFullYear();
@@ -157,11 +168,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 guestCard.innerHTML = `
                     <div class="guest-access-title"><i class="fa-regular fa-user"></i> You are using Guest Mode</div>
                     <div class="guest-access-text">Log in with your account for full access, including bookmarks and personalized menus.</div>
-                    <button class="guest-access-link" id="guestUpgradeBtn" type="button">Log in to unlock full access</button>
+                    <div class="guest-access-actions">
+                        <button class="guest-access-link" id="guestUpgradeBtn" type="button">Log in to unlock full access</button>
+                        <span class="guest-access-or">or</span>
+                        <button class="guest-access-link secondary" id="guestBackToLoginBtn" type="button">Go Back to Login Screen</button>
+                    </div>
                 `;
                 homeView.insertBefore(guestCard, homeView.firstChild);
 
                 const guestUpgradeBtn = document.getElementById('guestUpgradeBtn');
+                const guestBackToLoginBtn = document.getElementById('guestBackToLoginBtn');
                 if (guestUpgradeBtn) {
                     guestUpgradeBtn.addEventListener('click', async () => {
                         try {
@@ -182,12 +198,85 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     });
                 }
+                if (guestBackToLoginBtn) {
+                    guestBackToLoginBtn.addEventListener('click', () => {
+                        localStorage.removeItem('isOrbitGuest');
+                        localStorage.removeItem('googleCalendarToken');
+                        window.location.href = '/';
+                    });
+                }
             }
         } else {
             if (navIcon) navIcon.style.display = '';
             if (sideMenu) sideMenu.style.display = '';
             if (sideMenuOverlay) sideMenuOverlay.style.display = '';
             if (existingCard) existingCard.remove();
+        }
+    }
+
+    function applyAuthScopedVisibility(user) {
+        const sourceFilterBtn = document.getElementById('sourceFilterBtn');
+        const calSourceSelect = document.getElementById('calSourceSelect');
+        const listViewLegend = document.getElementById('listViewLegend');
+        const calendarViewLegend = document.getElementById('calendarViewLegend');
+        const themeTopToggle = document.getElementById('themeTopToggle');
+        const showSourceSelector = !!user && isGoogleUser(user) && !isGuestSession;
+
+        canUseSourceSelector = showSourceSelector;
+
+        if (sourceFilterBtn) {
+            const sourceFilterSection = sourceFilterBtn.closest('.filter-section');
+            if (sourceFilterSection) {
+                sourceFilterSection.style.display = showSourceSelector ? '' : 'none';
+            }
+        }
+
+        if (calSourceSelect) {
+            calSourceSelect.style.display = showSourceSelector ? '' : 'none';
+        }
+
+        if (listViewLegend) {
+            listViewLegend.style.display = showSourceSelector ? '' : 'none';
+        }
+
+        if (calendarViewLegend) {
+            calendarViewLegend.style.display = showSourceSelector ? '' : 'none';
+        }
+
+        if (!showSourceSelector) {
+            currentFilters.source = 'all';
+        }
+
+        if (profileEmailText) {
+            profileEmailText.textContent = user && user.email ? user.email : 'Guest Mode';
+        }
+
+        if (themeTopToggle) {
+            const topThemeWrap = themeTopToggle.parentElement;
+            if (topThemeWrap) {
+                topThemeWrap.style.display = isGuestSession ? 'flex' : 'none';
+            } else {
+                themeTopToggle.style.display = isGuestSession ? 'inline-flex' : 'none';
+            }
+        }
+
+        document.body.classList.toggle('logo-centered-mode', !isGuestSession);
+
+        if (isGuestSession) {
+            if (profileMenu) {
+                profileMenu.classList.remove('show');
+                profileMenu.style.display = 'none';
+            }
+            if (profileBtn) {
+                profileBtn.style.cursor = 'default';
+                profileBtn.setAttribute('aria-disabled', 'true');
+            }
+        } else {
+            if (profileMenu) profileMenu.style.display = '';
+            if (profileBtn) {
+                profileBtn.style.cursor = '';
+                profileBtn.removeAttribute('aria-disabled');
+            }
         }
     }
 
@@ -206,6 +295,7 @@ document.addEventListener('DOMContentLoaded', () => {
             window.location.href = '/';
         } else {
             applyGuestModeUI();
+            applyAuthScopedVisibility(user);
 
             if (user && user.photoURL) {
                 navProfile.style.backgroundImage = `url('${user.photoURL}')`;
@@ -548,6 +638,26 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- FILTER LISTENERS ---
+    function syncSourceFilterUI() {
+        const sourceFilterBtn = document.getElementById('sourceFilterBtn');
+        const calSourceSelect = document.getElementById('calSourceSelect');
+        const sourceLabelByValue = {
+            all: 'All Events',
+            my: 'My Events',
+            public: 'Public Events'
+        };
+
+        if (sourceFilterBtn) {
+            const label = sourceFilterBtn.querySelector('span');
+            if (label) label.innerText = sourceLabelByValue[currentFilters.source] || 'All Events';
+            sourceFilterBtn.classList.toggle('active', canUseSourceSelector && currentFilters.source !== 'all');
+        }
+
+        if (calSourceSelect) {
+            calSourceSelect.value = currentFilters.source || 'all';
+        }
+    }
+
     if(searchInput) {
         searchInput.addEventListener('input', (e) => {
             currentFilters.search = e.target.value.toLowerCase();
@@ -571,11 +681,15 @@ document.addEventListener('DOMContentLoaded', () => {
         item.addEventListener('click', (e) => {
             e.stopPropagation();
             const filterType = item.dataset.filterType; 
-            if (filterType === 'source') currentFilters.source = item.dataset.value;
+            if (filterType === 'source') {
+                if (!canUseSourceSelector) return;
+                currentFilters.source = item.dataset.value;
+            }
             if (filterType === 'time') currentFilters.time = item.dataset.value;
             const menu = item.parentElement;
             menu.previousElementSibling.querySelector('span').innerText = item.innerText;
             menu.previousElementSibling.classList.remove('active'); menu.classList.remove('show');
+            if (filterType === 'source') syncSourceFilterUI();
             applyFilters();
         });
     });
@@ -660,13 +774,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 categoryChips.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
             }
 
-            const sourceFilterBtn = document.getElementById('sourceFilterBtn');
             const timeFilterBtn = document.getElementById('timeFilterBtn');
-            if (sourceFilterBtn) {
-                const label = sourceFilterBtn.querySelector('span');
-                if (label) label.innerText = 'All Events';
-                sourceFilterBtn.classList.remove('active');
-            }
+            syncSourceFilterUI();
             if (timeFilterBtn) {
                 const label = timeFilterBtn.querySelector('span');
                 if (label) label.innerText = 'Any Time';
@@ -866,7 +975,8 @@ document.addEventListener('DOMContentLoaded', () => {
             item.locValue,
             item.type,
             JSON.stringify(item.images || []),
-            encodeURIComponent(item.ticketUrl || '')
+            encodeURIComponent(item.ticketUrl || ''),
+            encodeURIComponent(item.id || '')
         );
     };
 
@@ -906,17 +1016,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ email: user.email, title: item.title, days: remDays, hours: remHoursVal })
                 });
-                if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-                    const timeLabel = reminderMinutes < 60
-                        ? `${reminderMinutes} minutes`
-                        : reminderMinutes < 1440
-                            ? `${Math.round(reminderMinutes / 60)} hour(s)`
-                            : `${Math.round(reminderMinutes / 1440)} day(s)`;
-                    new Notification(`Upcoming: ${item.title}`, {
-                        body: `Starting in ${timeLabel}`,
-                        icon: '/static/images/Orbitlogo.png'
-                    });
-                }
                 sentCustom[remKey] = true;
                 localStorage.setItem("sentReminders_custom", JSON.stringify(sentCustom));
             }
@@ -928,7 +1027,12 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!container) return;
 
         container.innerHTML = '';
-        if (!imageUrls.length) return;
+        if (!imageUrls.length) {
+            container.style.display = 'none';
+            return;
+        }
+
+        container.style.display = 'block';
 
         let currentIndex = 0;
         const wrapper = document.createElement('div');
@@ -998,7 +1102,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- MODAL LOGIC ---
-    window.openModal = function(title, desc, dateStr, rawIsoDate, locType, locValue, itemType, imagesPayload, ticketUrlPayload) {
+    window.openModal = async function(title, desc, dateStr, rawIsoDate, locType, locValue, itemType, imagesPayload, ticketUrlPayload, itemIdPayload) {
         if(!modalOverlay) return;
         const dTitle = safeDecode(title);
         const dDesc = safeDecode(desc);
@@ -1006,6 +1110,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const dLocValue = safeDecode(locValue);
         const dLocType = safeDecode(locType);
         const dTicketUrl = safeDecode(ticketUrlPayload || '');
+        const dItemId = safeDecode(itemIdPayload || '');
         const safeTicketUrl = /^https?:\/\//i.test(dTicketUrl) ? dTicketUrl : '';
 
         let decodedImages = [];
@@ -1015,10 +1120,17 @@ document.addEventListener('DOMContentLoaded', () => {
             decodedImages = [];
         }
         const imageUrls = normalizeImageUrls(decodedImages, true);
+        const hasDescription = Boolean(dDesc && dDesc.trim());
 
         modalTitle.innerText = dTitle;
-        modalDesc.innerText = dDesc || "No description.";
         modalDate.innerText = dDate;
+        if (modalDesc) {
+            modalDesc.innerText = dDesc || '';
+            modalDesc.style.display = hasDescription ? 'inline' : 'none';
+        }
+        if (modalMetaSeparator) {
+            modalMetaSeparator.style.display = hasDescription ? 'inline' : 'none';
+        }
         renderModalCarousel(imageUrls);
 
         const locContainer = document.getElementById('modal-location-container');
@@ -1027,22 +1139,32 @@ document.addEventListener('DOMContentLoaded', () => {
             const safeMapSrc = /^https?:\/\//i.test(dLocValue) ? dLocValue : '';
             if (dLocType === 'map' && safeMapSrc && dLocValue !== 'undefined') {
                 locContainer.innerHTML = `<iframe src="${safeMapSrc}" width="100%" height="250" style="border:0; border-radius:12px;" allowfullscreen="" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>`;
+                locContainer.style.display = 'block';
             } else if (dLocValue && dLocValue !== 'undefined' && dLocValue !== "") {
                 locContainer.innerHTML = `<div class="modal-location-card"><i class="fa-solid fa-location-dot"></i><span>${escapeHtml(dLocValue)}</span></div>`;
+                locContainer.style.display = 'block';
+            } else {
+                locContainer.style.display = 'none';
             }
         }
         const gcalBtn = document.getElementById('add-to-gcal-btn');
+        const gcalContainer = document.getElementById('modal-gcal-container');
         const ticketContainer = document.getElementById('modal-ticket-container');
-        const isGoogleCalendarEvent = itemType === 'Event';
+        const isGoogleCalendarEvent = itemType === 'Event' || itemType === 'Task';
 
         if (ticketContainer) {
             ticketContainer.innerHTML = safeTicketUrl
                 ? `<a href="${safeTicketUrl}" target="_blank" rel="noopener noreferrer" class="gcal-add-btn" style="background:#fff7ed;color:#9a3412;border:1px solid #fdba74;"><i class="fa-solid fa-ticket" style="margin-right:8px;"></i>Book Tickets</a>`
                 : '';
+            ticketContainer.style.display = safeTicketUrl ? 'block' : 'none';
         }
 
         if (gcalBtn) {
             gcalBtn.style.display = isGoogleCalendarEvent ? 'none' : 'inline-flex';
+        }
+
+        if (gcalContainer) {
+            gcalContainer.style.display = isGoogleCalendarEvent ? 'none' : 'block';
         }
 
         if (gcalBtn && rawIsoDate && !isGoogleCalendarEvent) {
@@ -1051,6 +1173,29 @@ document.addEventListener('DOMContentLoaded', () => {
             const fmt = d => d.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
             gcalBtn.href = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(dTitle)}&dates=${fmt(startDt)}/${fmt(endDt)}&details=${encodeURIComponent(dDesc)}&location=${encodeURIComponent(dLocValue)}`;
         }
+
+        if (modalBookmarkBtn) {
+            if (isGuestSession || !dItemId) {
+                modalBookmarkBtn.style.display = 'none';
+                currentModalEvent = null;
+            } else {
+                const matchedItem = window.currentFilteredEvents.find((e) => e.id === dItemId)
+                    || window.globalEventsStore.find((e) => e.id === dItemId)
+                    || { id: dItemId, title: dTitle, description: dDesc, sortDate: rawIsoDate, locType: dLocType, locValue: dLocValue, type: itemType, images: imageUrls, ticketUrl: dTicketUrl };
+
+                currentModalEvent = matchedItem;
+                modalBookmarkBtn.style.display = 'inline-flex';
+
+                const modalIcon = modalBookmarkBtn.querySelector('i');
+                const bookmarked = await isBookmarked(dItemId);
+                modalBookmarkBtn.classList.toggle('active', bookmarked);
+                if (modalIcon) {
+                    modalIcon.classList.toggle('fa-solid', bookmarked);
+                    modalIcon.classList.toggle('fa-regular', !bookmarked);
+                }
+            }
+        }
+
         modalOverlay.classList.add('show');
         document.body.classList.add('modal-open');
         startLiveCountdown(rawIsoDate);
@@ -1061,8 +1206,25 @@ document.addEventListener('DOMContentLoaded', () => {
         const targetDate = new Date(targetIsoDate).getTime();
         const update = () => { const now = new Date().getTime(); const distance = targetDate - now; if (distance < 0) { elDays.innerText = "00"; elHours.innerText = "00"; elMins.innerText = "00"; elSecs.innerText = "00"; clearInterval(countdownInterval); return; } const d = Math.floor(distance / (1000 * 60 * 60 * 24)); const h = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)); const m = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60)); const s = Math.floor((distance % (1000 * 60)) / 1000); elDays.innerText = String(d).padStart(2, '0'); elHours.innerText = String(h).padStart(2, '0'); elMins.innerText = String(m).padStart(2, '0'); elSecs.innerText = String(s).padStart(2, '0'); }; update(); countdownInterval = setInterval(update, 1000);
     }
-    function closeModal() { if(modalOverlay) modalOverlay.classList.remove('show'); document.body.classList.remove('modal-open'); if(countdownInterval) clearInterval(countdownInterval); }
+    function closeModal() { if(modalOverlay) modalOverlay.classList.remove('show'); document.body.classList.remove('modal-open'); if(countdownInterval) clearInterval(countdownInterval); currentModalEvent = null; }
     if(closeModalBtn) closeModalBtn.addEventListener('click', closeModal); if(modalOverlay) modalOverlay.addEventListener('click', (e) => { if(e.target === modalOverlay) closeModal(); });
+
+    if (modalBookmarkBtn) {
+        modalBookmarkBtn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            if (isGuestSession || !currentModalEvent) return;
+
+            const isAdded = await toggleBookmark(currentModalEvent);
+            const icon = modalBookmarkBtn.querySelector('i');
+            modalBookmarkBtn.classList.toggle('active', isAdded);
+            if (icon) {
+                icon.classList.toggle('fa-solid', isAdded);
+                icon.classList.toggle('fa-regular', !isAdded);
+            }
+
+            showReminderPicker(currentModalEvent, isAdded);
+        });
+    }
 
     // Day View Modal Logic
     function openDayModal(eventsForDay, dateString) {
@@ -1073,7 +1235,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const icon = item.type === 'Task' ? 'Task' : (item.type === 'Public' ? 'Public' : 'Event');
                 const dt = new Date(item.sortDate); const timeStr = item.isAllDay ? "All Day" : dt.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}); const safeDateStr = `${dateString} at ${timeStr}`; const colorBorder = item.color === 'blue' ? 'border-blue' : 'border-green';
                 const div = document.createElement('div'); div.className = `day-event-item ${colorBorder}`; div.innerHTML = `<h4>${item.title}</h4><p>${timeStr} • ${icon}</p>`;
-                div.addEventListener('click', () => { closeDayModal(); setTimeout(() => { openModal(encodeURIComponent(item.title), encodeURIComponent(item.description), encodeURIComponent(safeDateStr), item.sortDate, encodeURIComponent(item.locType), encodeURIComponent(item.locValue), item.type, encodeURIComponent(JSON.stringify(item.images || [])), encodeURIComponent(item.ticketUrl || '')); }, 300); });
+                div.addEventListener('click', () => { closeDayModal(); setTimeout(() => { openModal(encodeURIComponent(item.title), encodeURIComponent(item.description), encodeURIComponent(safeDateStr), item.sortDate, encodeURIComponent(item.locType), encodeURIComponent(item.locValue), item.type, encodeURIComponent(JSON.stringify(item.images || [])), encodeURIComponent(item.ticketUrl || ''), encodeURIComponent(item.id || '')); }, 300); });
                 dayEventsList.appendChild(div);
             });
         }
@@ -1081,6 +1243,69 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     function closeDayModal() { if(dayModalOverlay) dayModalOverlay.classList.remove('show'); document.body.classList.remove('modal-open'); }
     if(closeDayBtn) closeDayBtn.addEventListener('click', closeDayModal); if(dayModalOverlay) dayModalOverlay.addEventListener('click', (e) => { if(e.target === dayModalOverlay) closeDayModal(); });
+
+    function resetCalendarDayPanel() {
+        if (!calendarDayPanelTitle || !calendarDayEventsList) return;
+        calendarDayPanelTitle.innerText = 'Select a day';
+        calendarDayEventsList.innerHTML = '<div class="calendar-day-empty">Click any date to view events for that day.</div>';
+    }
+
+    function openCalendarDayPanel() {
+        if (calendarSplitLayout) calendarSplitLayout.classList.remove('panel-hidden');
+        if (calendarDayPanel) calendarDayPanel.scrollTop = 0;
+    }
+
+    function closeCalendarDayPanel() {
+        if (calendarSplitLayout) calendarSplitLayout.classList.add('panel-hidden');
+        if (selectedCalendarDayCell) {
+            selectedCalendarDayCell.classList.remove('selected');
+            selectedCalendarDayCell = null;
+        }
+        resetCalendarDayPanel();
+    }
+
+    function renderCalendarDayPanel(eventsForDay, dateString) {
+        if (!calendarDayPanelTitle || !calendarDayEventsList) return;
+
+        calendarDayPanelTitle.innerText = dateString;
+        calendarDayEventsList.innerHTML = '';
+
+        if (!eventsForDay.length) {
+            calendarDayEventsList.innerHTML = '<div class="calendar-day-empty">No events for this day.</div>';
+            return;
+        }
+
+        eventsForDay.forEach(item => {
+            const icon = item.type === 'Task' ? 'Task' : (item.type === 'Public' ? 'Public' : 'Event');
+            const dt = new Date(item.sortDate);
+            const timeStr = item.isAllDay ? 'All Day' : dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            const safeDateStr = `${dateString} at ${timeStr}`;
+            const colorBorder = item.color === 'blue' ? 'border-blue' : 'border-green';
+            const dayImageUrls = normalizeImageUrls(item.images || [], true);
+            const dayThumbUrl = dayImageUrls[0] || '';
+            const thumbHtml = dayThumbUrl
+                ? `<div class="event-thumb day-event-thumb"><img src="${dayThumbUrl}" alt="${escapeHtml(item.title || 'Event image')}"></div>`
+                : '';
+            const div = document.createElement('div');
+            div.className = `day-event-item ${colorBorder}`;
+            div.innerHTML = `${thumbHtml}<div class="day-event-content"><h4>${escapeHtml(item.title || 'Untitled')}</h4><p>${timeStr} • ${icon}</p></div>`;
+            div.addEventListener('click', () => {
+                openModal(
+                    encodeURIComponent(item.title),
+                    encodeURIComponent(item.description),
+                    encodeURIComponent(safeDateStr),
+                    item.sortDate,
+                    encodeURIComponent(item.locType),
+                    encodeURIComponent(item.locValue),
+                    item.type,
+                    encodeURIComponent(JSON.stringify(item.images || [])),
+                    encodeURIComponent(item.ticketUrl || ''),
+                    encodeURIComponent(item.id || '')
+                );
+            });
+            calendarDayEventsList.appendChild(div);
+        });
+    }
 
     // ==========================================
     // 5. CALENDAR RENDER LOGIC
@@ -1090,6 +1315,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if(!calendarGrid) return;
         
         calendarGrid.innerHTML = "";
+        selectedCalendarDayCell = null;
+        closeCalendarDayPanel();
         const firstDay = new Date(year, month, 1).getDay(); const daysInMonth = new Date(year, month + 1, 0).getDate(); const daysInPrevMonth = new Date(year, month, 0).getDate();
         const today = new Date(); const isCurrentMonth = today.getMonth() === month && today.getFullYear() === year;
         
@@ -1104,7 +1331,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             if (dayEvents.length > 0) {
                 const lineContainer = document.createElement('div'); lineContainer.className = "cal-event-container";
-                dayEvents.slice(0, 3).forEach(e => {
+                dayEvents.slice(0, 2).forEach(e => {
                     const line = document.createElement('div');
                     line.className = `cal-line ${e.color}`;
                     const label = document.createElement('span');
@@ -1112,13 +1339,27 @@ document.addEventListener('DOMContentLoaded', () => {
                     line.appendChild(label);
                     lineContainer.appendChild(line);
                 });
-                if (dayEvents.length > 3) { const more = document.createElement('span'); more.style.fontSize = "10px"; more.style.color = "#888"; more.style.paddingLeft = "4px"; more.innerText = `+${dayEvents.length - 3}`; lineContainer.appendChild(more); }
                 dayDiv.appendChild(lineContainer);
+
+                if (dayEvents.length > 2) {
+                    const moreIndicator = document.createElement('span');
+                    moreIndicator.className = 'cal-more-indicator';
+                    moreIndicator.innerText = `+${dayEvents.length - 2} more`;
+                    dayDiv.appendChild(moreIndicator);
+                }
             }
-            dayDiv.onclick = () => { openDayModal(dayEvents, `${i} ${months[month]} ${year}`); };
+            dayDiv.onclick = () => {
+                if (selectedCalendarDayCell) selectedCalendarDayCell.classList.remove('selected');
+                dayDiv.classList.add('selected');
+                selectedCalendarDayCell = dayDiv;
+                openCalendarDayPanel();
+                renderCalendarDayPanel(dayEvents, `${i} ${months[month]} ${year}`);
+            };
             calendarGrid.appendChild(dayDiv); 
         }
-        const totalCells = firstDay + daysInMonth; const nextMonthDays = 42 - totalCells;
+        const totalCells = firstDay + daysInMonth;
+        const visibleCells = 35;
+        const nextMonthDays = Math.max(0, visibleCells - totalCells);
         for (let i = 1; i <= nextMonthDays; i++) { const dayDiv = document.createElement('div'); dayDiv.classList.add('cal-day', 'other-month'); dayDiv.innerHTML = `<span class="day-number">${i}</span>`; calendarGrid.appendChild(dayDiv); }
     }
 
@@ -1128,6 +1369,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const btnCalendarView = document.getElementById('btnCalendarView');
         const listViewContent = document.getElementById('listViewContent');
         const calendarViewContent = document.getElementById('calendarViewContent');
+        const calSourceSelect = document.getElementById('calSourceSelect');
         const calMonthSelect = document.getElementById('calMonthSelect');
         const calYearSelect = document.getElementById('calYearSelect');
         const prevMonthBtn = document.getElementById('prevMonth');
@@ -1142,11 +1384,21 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 btnCalendarView.classList.add('active'); btnListView.classList.remove('active');
                 listViewContent.style.opacity = '0';
-                setTimeout(() => { listViewContent.classList.add('view-hidden'); calendarViewContent.classList.remove('view-hidden'); void calendarViewContent.offsetWidth; calendarViewContent.style.opacity = '1'; renderCalendar(currentMonth, currentYear); }, 200);
+                setTimeout(() => { listViewContent.classList.add('view-hidden'); calendarViewContent.classList.remove('view-hidden'); void calendarViewContent.offsetWidth; calendarViewContent.style.opacity = '1'; syncSourceFilterUI(); renderCalendar(currentMonth, currentYear); }, 200);
             }
         }
         btnListView.addEventListener('click', () => switchView('list'));
         btnCalendarView.addEventListener('click', () => switchView('calendar'));
+
+        if (calSourceSelect) {
+            calSourceSelect.value = currentFilters.source || 'all';
+            calSourceSelect.addEventListener('change', (e) => {
+                if (!canUseSourceSelector) return;
+                currentFilters.source = e.target.value;
+                syncSourceFilterUI();
+                applyFilters();
+            });
+        }
 
         if(goToTodayBtn) {
             goToTodayBtn.addEventListener('click', () => {
@@ -1167,6 +1419,12 @@ document.addEventListener('DOMContentLoaded', () => {
         if (nextMonthBtn) nextMonthBtn.addEventListener('click', () => { currentMonth++; if (currentMonth > 11) { currentMonth = 0; currentYear++; calYearSelect.value = currentYear; } calMonthSelect.value = currentMonth; renderCalendar(currentMonth, currentYear); });
     }
 
+    syncSourceFilterUI();
+
+    if (calendarDayPanelCloseBtn) {
+        calendarDayPanelCloseBtn.addEventListener('click', closeCalendarDayPanel);
+    }
+
     if(logoutBtn) logoutBtn.addEventListener('click', async (e) => {
         e.stopPropagation();
         localStorage.removeItem('isOrbitGuest');
@@ -1184,7 +1442,11 @@ document.addEventListener('DOMContentLoaded', () => {
             window.location.href = '/';
         }, 800);
     });
-    if(profileBtn) profileBtn.addEventListener('click', (e) => { e.stopPropagation(); profileMenu.classList.toggle('show'); });
+    if(profileBtn) profileBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (isGuestSession || !profileMenu || profileMenu.style.display === 'none') return;
+        profileMenu.classList.toggle('show');
+    });
     if(navIcon) navIcon.addEventListener('click', (e) => { e.stopPropagation(); sideMenu.classList.add('show'); sideMenuOverlay.classList.add('show'); });
     const closeSideMenuFn = () => { sideMenu.classList.remove('show'); sideMenuOverlay.classList.remove('show'); }
     if(closeMenuBtn) closeMenuBtn.addEventListener('click', closeSideMenuFn); if(sideMenuOverlay) sideMenuOverlay.addEventListener('click', closeSideMenuFn);
@@ -1228,50 +1490,29 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- DARK MODE TOGGLE ---
     const darkToggle = document.getElementById('dark-mode-toggle');
-    if (darkToggle) {
-        const syncDarkUI = () => {
-            const isDark = document.documentElement.classList.contains('dark');
-            const icon = document.getElementById('dark-mode-icon');
-            const label = document.getElementById('dark-mode-label');
-            if (icon) icon.className = isDark ? 'fa-solid fa-sun' : 'fa-solid fa-moon';
-            if (label) label.textContent = isDark ? 'Light Mode' : 'Dark Mode';
-        };
+    const themeTopToggle = document.getElementById('themeTopToggle');
+    const syncDarkUI = () => {
+        const isDark = document.documentElement.classList.contains('dark');
+        const icon = document.getElementById('dark-mode-icon');
+        const label = document.getElementById('dark-mode-label');
+        const topIcon = document.getElementById('themeTopIcon');
+        const topLabel = document.getElementById('themeTopLabel');
+
+        if (icon) icon.className = isDark ? 'fa-solid fa-sun' : 'fa-solid fa-moon';
+        if (label) label.textContent = isDark ? 'Light Mode' : 'Dark Mode';
+        if (topIcon) topIcon.className = isDark ? 'fa-solid fa-sun' : 'fa-solid fa-moon';
+        if (topLabel) topLabel.textContent = isDark ? 'Light' : 'Dark';
+    };
+
+    const toggleTheme = () => {
+        const isDark = document.documentElement.classList.toggle('dark');
+        localStorage.setItem('orbitTheme', isDark ? 'dark' : 'light');
         syncDarkUI();
-        darkToggle.addEventListener('click', () => {
-            const isDark = document.documentElement.classList.toggle('dark');
-            localStorage.setItem('orbitTheme', isDark ? 'dark' : 'light');
-            syncDarkUI();
-        });
-    }
+    };
 
-    // --- NOTIFICATION PERMISSION TOGGLE ---
-    const notifToggle = document.getElementById('notif-toggle');
-
-    // Auto-prompt on load if permission is not yet granted.
-    if (typeof Notification !== 'undefined' && Notification.permission !== 'granted') {
-        Notification.requestPermission().then((perm) => {
-            if (perm === 'granted') {
-                new Notification('Orbit', {
-                    body: "You'll now receive alerts before your bookmarked events.",
-                    icon: '/static/images/Orbitlogo.png'
-                });
-            }
-        }).catch(() => {});
-    }
-
-    if (notifToggle) {
-        notifToggle.addEventListener('click', async () => {
-            if (typeof Notification === 'undefined') return;
-            if (Notification.permission === 'granted') {
-                new Notification('Orbit', { body: 'Push notifications are already enabled!', icon: '/static/images/Orbitlogo.png' });
-            } else {
-                const perm = await Notification.requestPermission();
-                if (perm === 'granted') {
-                    new Notification('Orbit', { body: "You'll now receive alerts before your bookmarked events.", icon: '/static/images/Orbitlogo.png' });
-                }
-            }
-        });
-    }
+    syncDarkUI();
+    if (darkToggle) darkToggle.addEventListener('click', toggleTheme);
+    if (themeTopToggle) themeTopToggle.addEventListener('click', toggleTheme);
 
     // --- AFK KEEP-ALIVE (pings /ping every 5 min while user is idle) ---
     let lastActivity = Date.now();

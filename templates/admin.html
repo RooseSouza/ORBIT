@@ -614,6 +614,7 @@
         }
 
         .image-preview-item {
+            position: relative;
             border: 1px solid var(--border);
             border-radius: 10px;
             overflow: hidden;
@@ -626,6 +627,52 @@
             height: 100%;
             object-fit: cover;
             display: block;
+        }
+
+        .image-preview-remove {
+            position: absolute;
+            top: 6px;
+            right: 6px;
+            width: 22px;
+            height: 22px;
+            border: none;
+            border-radius: 50%;
+            background: rgba(15, 23, 42, 0.82);
+            color: #fff;
+            cursor: pointer;
+            font-size: 12px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .image-preview-label {
+            position: absolute;
+            left: 6px;
+            bottom: 6px;
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            padding: 3px 6px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.9);
+            color: #334155;
+        }
+
+        .edit-mode-banner {
+            display: none;
+            margin-bottom: 18px;
+            background: var(--warning-light);
+            border: 1px solid #fde68a;
+            color: #92400e;
+            border-radius: var(--radius-sm);
+            padding: 12px 14px;
+            font-size: 13px;
+            font-weight: 600;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
         }
 
         /* ====================== */
@@ -932,6 +979,23 @@
             color: #94a3b8;
         }
 
+        html.dark input:focus,
+        html.dark textarea:focus {
+            background: #1a1d2e;
+            color: var(--text);
+        }
+
+        html.dark .image-preview-label {
+            background: rgba(15, 23, 42, 0.82);
+            color: #e2e8f0;
+        }
+
+        html.dark .edit-mode-banner {
+            background: #3f3308;
+            border-color: #6b4f0c;
+            color: #fde68a;
+        }
+
         .toast i {
             font-size: 18px;
         }
@@ -1046,8 +1110,13 @@
             
             <!-- CREATE FORM -->
             <div class="form-section">
-                <div class="section-title">
+                <div class="section-title" id="formModeTitle">
                     <i class="fa-solid fa-calendar-plus"></i> Create Public Event
+                </div>
+
+                <div class="edit-mode-banner" id="editModeBanner">
+                    <span><i class="fa-solid fa-pen-to-square"></i> Editing upcoming event</span>
+                    <button id="cancelEditBtn" class="btn-secondary" type="button" style="padding:8px 14px; border-radius:10px; font-size:12px;">Cancel Edit</button>
                 </div>
                 
                 <div class="form-grid">
@@ -1122,6 +1191,9 @@
                     </div>
 
                     <div class="full-width" style="text-align:right; margin-top:10px;">
+                        <button id="secondaryCancelEditBtn" class="btn-secondary" type="button" style="display:none; margin-right:10px;">
+                            <i class="fa-solid fa-xmark"></i> Cancel
+                        </button>
                         <button id="addBtn" class="btn-primary">
                             <i class="fa-solid fa-paper-plane"></i> Publish Event
                         </button>
