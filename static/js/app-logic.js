@@ -47,6 +47,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const sideMenuOverlay = document.getElementById('side-menu-overlay');
     const closeMenuBtn = document.getElementById('close-menu-btn');
     const eventsContainer = document.getElementById('dynamic-events-container');
+    const homeView = document.getElementById('home-view');
+    const mobileFiltersToggle = document.getElementById('mobileFiltersToggle');
+    const mobileFiltersClose = document.getElementById('mobileFiltersClose');
+    const mobileFilterSidebar = document.getElementById('mobileFilterSidebar');
+    const filterSidebarOverlay = document.getElementById('filterSidebarOverlay');
 
     // Modals & Filters (Refs)
     const searchInput = document.getElementById('searchInput');
@@ -91,6 +96,29 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentMonth = new Date().getMonth();
     let currentYear = new Date().getFullYear();
     const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    const MOBILE_FILTER_BREAKPOINT = 1024;
+
+    function isMobileFiltersViewport() {
+        return window.matchMedia(`(max-width: ${MOBILE_FILTER_BREAKPOINT}px)`).matches;
+    }
+
+    function setMobileFiltersState(isOpen) {
+        if (!homeView) return;
+        const shouldOpen = Boolean(isOpen && isMobileFiltersViewport());
+        homeView.classList.toggle('mobile-filters-open', shouldOpen);
+        if (mobileFiltersToggle) {
+            mobileFiltersToggle.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+        }
+    }
+
+    function closeMobileFilters() {
+        setMobileFiltersState(false);
+    }
+
+    function toggleMobileFilters() {
+        if (!homeView) return;
+        setMobileFiltersState(!homeView.classList.contains('mobile-filters-open'));
+    }
 
     // --- LOAD CUSTOM CATEGORIES ---
     function loadCustomCategories() {
@@ -672,6 +700,37 @@ document.addEventListener('DOMContentLoaded', () => {
             applyFilters();
         });
     }
+
+    if (mobileFiltersToggle) {
+        mobileFiltersToggle.addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleMobileFilters();
+        });
+    }
+
+    if (mobileFiltersClose) {
+        mobileFiltersClose.addEventListener('click', () => {
+            closeMobileFilters();
+        });
+    }
+
+    if (filterSidebarOverlay) {
+        filterSidebarOverlay.addEventListener('click', () => {
+            closeMobileFilters();
+        });
+    }
+
+    window.addEventListener('resize', () => {
+        if (!isMobileFiltersViewport()) {
+            closeMobileFilters();
+        }
+    });
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            closeMobileFilters();
+        }
+    });
     if (bookmarkSearchInput) {
         bookmarkSearchInput.addEventListener('input', () => {
             applyBookmarkSearch();
@@ -1377,6 +1436,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const goToTodayBtn = document.getElementById('goToToday');
 
         function switchView(view) {
+            closeMobileFilters();
             if (view === 'list') {
                 btnListView.classList.add('active'); btnCalendarView.classList.remove('active');
                 calendarViewContent.style.opacity = '0';
@@ -1451,7 +1511,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const closeSideMenuFn = () => { sideMenu.classList.remove('show'); sideMenuOverlay.classList.remove('show'); }
     if(closeMenuBtn) closeMenuBtn.addEventListener('click', closeSideMenuFn); if(sideMenuOverlay) sideMenuOverlay.addEventListener('click', closeSideMenuFn);
     document.querySelectorAll('.dropdown-btn').forEach(btn => { btn.addEventListener('click', (e) => { e.stopPropagation(); document.querySelectorAll('.dropdown-menu.show').forEach(m => { if(m !== btn.nextElementSibling) { m.classList.remove('show'); m.previousElementSibling.classList.remove('active'); }}); const menu = btn.nextElementSibling; btn.classList.toggle('active'); menu.classList.toggle('show'); }); });
-    document.addEventListener('click', () => { if(profileMenu) profileMenu.classList.remove('show'); document.querySelectorAll('.dropdown-menu').forEach(m => { m.classList.remove('show'); m.previousElementSibling.classList.remove('active'); }); });
+    document.addEventListener('click', () => {
+        if(profileMenu) profileMenu.classList.remove('show');
+        document.querySelectorAll('.dropdown-menu').forEach(m => { m.classList.remove('show'); m.previousElementSibling.classList.remove('active'); });
+        closeMobileFilters();
+    });
+
+    if (mobileFilterSidebar) {
+        mobileFilterSidebar.addEventListener('click', (e) => {
+            e.stopPropagation();
+        });
+    }
 
     // --- REMINDER PICKER TOAST ---
     function showReminderPicker(item, isAdded) {
