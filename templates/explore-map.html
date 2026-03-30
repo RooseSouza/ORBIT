@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+
+{% block head_extra %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<script type="module" src="/static/js/explore-map-logic.js"></script>
+{% endblock %}
+
+{% block content %}
+<div id="explore-map-view">
+    <div class="explore-map-header">
+        <h1>Explore Map</h1>
+        <p>Browse public events with Google map locations and open details on the side.</p>
+    </div>
+
+    <div class="explore-map-layout">
+        <section class="explore-map-canvas-card" aria-label="Event map">
+            <div id="exploreMapCanvas" class="explore-map-canvas"></div>
+            <div id="exploreMapFallback" class="explore-map-fallback" hidden></div>
+        </section>
+
+        <aside class="explore-map-detail-panel" aria-label="Event details panel">
+            <div id="exploreMapEmptyState" class="explore-map-empty-state">
+                <i class="fa-solid fa-location-dot"></i>
+                <h3>Select a place</h3>
+                <p>Click any marker on the map to view full event details and live countdown.</p>
+            </div>
+
+            <article id="exploreMapDetailCard" class="explore-map-detail-card is-hidden" aria-hidden="true">
+                <button id="exploreDetailBookmarkBtn" class="explore-detail-bookmark-btn" type="button" aria-label="Toggle bookmark" hidden>
+                    <i class="fa-regular fa-bookmark"></i>
+                </button>
+                <h2 id="exploreDetailTitle">Event</h2>
+                <p id="exploreDetailDate" class="explore-detail-date"></p>
+                <p id="exploreDetailDesc" class="explore-detail-description"></p>
+
+                <div class="explore-detail-countdown-block">
+                    <p>Event Starts In:</p>
+                    <div class="explore-detail-countdown-grid">
+                        <div class="explore-countdown-box">
+                            <span id="exploreCdDays" class="explore-countdown-num">00</span>
+                            <span class="explore-countdown-label">DAYS</span>
+                        </div>
+                        <div class="explore-countdown-sep">:</div>
+                        <div class="explore-countdown-box">
+                            <span id="exploreCdHours" class="explore-countdown-num">00</span>
+                            <span class="explore-countdown-label">HRS</span>
+                        </div>
+                        <div class="explore-countdown-sep">:</div>
+                        <div class="explore-countdown-box">
+                            <span id="exploreCdMinutes" class="explore-countdown-num">00</span>
+                            <span class="explore-countdown-label">MIN</span>
+                        </div>
+                        <div class="explore-countdown-sep">:</div>
+                        <div class="explore-countdown-box">
+                            <span id="exploreCdSeconds" class="explore-countdown-num">00</span>
+                            <span class="explore-countdown-label">SEC</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="exploreDetailLocation" class="explore-detail-location"></div>
+                <div id="exploreDetailTicket" class="explore-detail-ticket"></div>
+            </article>
+        </aside>
+    </div>
+</div>
+{% endblock %}

@@ -112,12 +112,17 @@ def home():
 def bookmarks():
     return render_template('bookmarks.html', active_page='bookmarks')
 
-# 4. Admin Page
+# 4. Explore Map Page
+@app.route('/explore-map')
+def explore_map():
+    return render_template('explore-map.html', active_page='explore_map')
+
+# 5. Admin Page
 @app.route('/admin')
 def admin():
     return render_template('admin.html')
 
-# 5. Send Reminder Email (Triggered by JS)
+# 6. Send Reminder Email (Triggered by JS)
 @app.route('/send-reminder', methods=['POST'])
 def send_reminder():
     data = request.json

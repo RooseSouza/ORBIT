@@ -9,6 +9,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="/static/css/style.css">
     <script type="module" src="/static/js/app-logic.js"></script>
+    {% block head_extra %}{% endblock %}
     <!-- Add Favicon -->
     <link rel="icon" type="image/png" href="/static/images/timer_logo-removebg-preview.png">
     <script>if(localStorage.getItem('orbitTheme')==='dark')document.documentElement.classList.add('dark');</script>
@@ -68,6 +69,11 @@
             <a href="/bookmarks">
                 <li class="menu-item {% if active_page == 'bookmarks' %}active{% endif %}">
                     <i class="fa-solid fa-bookmark"></i> Bookmarks
+                </li>
+            </a>
+            <a href="/explore-map">
+                <li class="menu-item {% if active_page == 'explore_map' %}active{% endif %}">
+                    <i class="fa-solid fa-map-location-dot"></i> Explore Map
                 </li>
             </a>
             <li class="menu-item" id="dark-mode-toggle" style="cursor:pointer;">

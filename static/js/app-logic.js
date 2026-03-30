@@ -910,6 +910,45 @@ document.addEventListener('DOMContentLoaded', () => {
         return div.innerHTML;
     }
 
+    function buildMapEmbedSrc(rawValue) {
+        const raw = String(rawValue || '').trim();
+        if (!/^https?:\/\//i.test(raw)) return '';
+
+        const iframeSrcMatch = raw.match(/src=["']([^"']+)["']/i);
+        const srcCandidate = iframeSrcMatch ? iframeSrcMatch[1] : raw;
+
+        try {
+            const parsed = new URL(srcCandidate);
+            const host = parsed.hostname.toLowerCase();
+            const isGoogleMapsHost = host.includes('google.') && (host.includes('maps') || parsed.pathname.includes('/maps'));
+            if (!isGoogleMapsHost) return srcCandidate;
+
+            const existingQ = parsed.searchParams.get('q') || parsed.searchParams.get('query') || '';
+            if (existingQ) {
+                return `https://www.google.com/maps?q=${encodeURIComponent(existingQ)}&output=embed`;
+            }
+
+            const placeMatch = decodeURIComponent(parsed.pathname).match(/\/place\/([^/]+)/i);
+            if (placeMatch && placeMatch[1]) {
+                return `https://www.google.com/maps?q=${encodeURIComponent(placeMatch[1])}&output=embed`;
+            }
+
+            const coordMatch = decodeURIComponent(parsed.pathname).match(/@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/);
+            if (coordMatch) {
+                return `https://www.google.com/maps?q=${coordMatch[1]},${coordMatch[2]}&output=embed`;
+            }
+
+            if (parsed.pathname.includes('/maps/embed')) {
+                return srcCandidate;
+            }
+
+            parsed.searchParams.set('output', 'embed');
+            return parsed.toString();
+        } catch (_) {
+            return srcCandidate;
+        }
+    }
+
     async function renderMixedItems(items, targetContainer) {
         if (!targetContainer) return;
         
@@ -1195,9 +1234,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const locContainer = document.getElementById('modal-location-container');
         if (locContainer) {
             locContainer.innerHTML = "";
-            const safeMapSrc = /^https?:\/\//i.test(dLocValue) ? dLocValue : '';
+            const safeMapSrc = buildMapEmbedSrc(dLocValue);
             if (dLocType === 'map' && safeMapSrc && dLocValue !== 'undefined') {
-                locContainer.innerHTML = `<iframe src="${safeMapSrc}" width="100%" height="250" style="border:0; border-radius:12px;" allowfullscreen="" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>`;
+                locContainer.innerHTML = `<iframe src="${safeMapSrc}" width="100%" height="340" style="border:0; border-radius:12px;" allowfullscreen="" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>`;
                 locContainer.style.display = 'block';
             } else if (dLocValue && dLocValue !== 'undefined' && dLocValue !== "") {
                 locContainer.innerHTML = `<div class="modal-location-card"><i class="fa-solid fa-location-dot"></i><span>${escapeHtml(dLocValue)}</span></div>`;
