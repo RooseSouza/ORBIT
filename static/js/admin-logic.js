@@ -556,7 +556,22 @@ document.addEventListener("DOMContentLoaded", () => {
     if (existingModal) existingModal.remove();
 
     const eventDate = new Date(eventData.date);
-    const readableDate = eventDate.toLocaleString("default", {
+    const eventEndDate = eventData.endDate ? new Date(eventData.endDate) : null;
+    const effectiveEndDate = eventEndDate && !Number.isNaN(eventEndDate.getTime())
+      ? eventEndDate
+      : new Date(eventDate.getTime() + 60 * 60 * 1000);
+
+    const readableStartDate = eventDate.toLocaleString("default", {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    });
+
+    const readableEndDate = effectiveEndDate.toLocaleString("default", {
       weekday: "short",
       month: "short",
       day: "numeric",
@@ -594,7 +609,7 @@ document.addEventListener("DOMContentLoaded", () => {
         <div class="modal-content details-modal-content">
           <button class="details-close-btn" id="details-close-btn" aria-label="Close details">&times;</button>
           <h3 class="details-title">${escapeHtml(eventData.title || "Untitled Event")}</h3>
-          <div class="details-meta"><i class="fa-regular fa-clock"></i> ${readableDate}</div>
+          <div class="details-meta"><i class="fa-regular fa-clock"></i> ${readableStartDate} → ${readableEndDate}</div>
           <div class="details-section">
             <h4>Description</h4>
             <p>${escapeHtml(eventData.description || "No description provided.")}</p>
