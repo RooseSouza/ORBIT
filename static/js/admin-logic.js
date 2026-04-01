@@ -35,6 +35,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const adminBackLink = document.getElementById("adminBackLink");
   const listDiv = document.getElementById("cms-list");
   const dateInput = document.getElementById("evtDate");
+  const endDateInput = document.getElementById("evtEndDate");
   const imageFileInput = document.getElementById("evtImageFiles");
   const imageLinksInput = document.getElementById("evtImageLinks");
   const imagePreview = document.getElementById("evtImagePreview");
@@ -86,6 +87,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const groupMap = document.getElementById("group-loc-map");
 
   let datePicker = null;
+  let endDatePicker = null;
   const MAX_EVENT_IMAGES = 8;
   let uploadedImageDataUrls = [];
   let existingEventImages = [];
@@ -217,6 +219,11 @@ document.addEventListener("DOMContentLoaded", () => {
     } else if (dateInput) {
       dateInput.value = "";
     }
+    if (endDatePicker) {
+      endDatePicker.clear();
+    } else if (endDateInput) {
+      endDateInput.value = "";
+    }
     document.getElementById("evtLocText").value = "";
     document.getElementById("evtLocMap").value = "";
     document.getElementById("evtTicketUrl").value = "";
@@ -246,11 +253,26 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("evtTicketUrl").value = eventData.ticketUrl || "";
 
     const rawDate = eventData.date ? new Date(eventData.date) : null;
+    const rawEndDate = eventData.endDate ? new Date(eventData.endDate) : null;
     if (rawDate && !Number.isNaN(rawDate.getTime())) {
       if (datePicker) {
         datePicker.setDate(rawDate, true);
       } else if (dateInput) {
         dateInput.value = rawDate.toISOString().slice(0, 16);
+      }
+    }
+    if (rawEndDate && !Number.isNaN(rawEndDate.getTime())) {
+      if (endDatePicker) {
+        endDatePicker.setDate(rawEndDate, true);
+      } else if (endDateInput) {
+        endDateInput.value = rawEndDate.toISOString().slice(0, 16);
+      }
+    } else if (rawDate) {
+      const fallbackEnd = new Date(rawDate.getTime() + 60 * 60 * 1000);
+      if (endDatePicker) {
+        endDatePicker.setDate(fallbackEnd, true);
+      } else if (endDateInput) {
+        endDateInput.value = fallbackEnd.toISOString().slice(0, 16);
       }
     }
 
@@ -291,6 +313,30 @@ document.addEventListener("DOMContentLoaded", () => {
       altFormat: "F j, Y h:i K",
       minDate: "today",
       time_24hr: false,
+    });
+  }
+
+  if (endDateInput && typeof window.flatpickr === "function") {
+    endDatePicker = window.flatpickr(endDateInput, {
+      enableTime: true,
+      dateFormat: "Y-m-d H:i",
+      altInput: true,
+      altFormat: "F j, Y h:i K",
+      minDate: "today",
+      time_24hr: false,
+    });
+  }
+
+  if (dateInput && endDatePicker) {
+    dateInput.addEventListener("change", () => {
+      const start = new Date(dateInput.value);
+      if (Number.isNaN(start.getTime())) return;
+      endDatePicker.set("minDate", start);
+      const currentEnd = endDateInput?.value ? new Date(endDateInput.value) : null;
+      if (!currentEnd || Number.isNaN(currentEnd.getTime()) || currentEnd <= start) {
+        const fallbackEnd = new Date(start.getTime() + 60 * 60 * 1000);
+        endDatePicker.setDate(fallbackEnd, true);
+      }
     });
   }
 
@@ -378,6 +424,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const title = document.getElementById("evtTitle").value;
     const desc = document.getElementById("evtDesc").value;
     const date = dateInput ? dateInput.value : "";
+    const endDate = endDateInput ? endDateInput.value : "";
     const ticketUrlRaw = (document.getElementById("evtTicketUrl")?.value || "").trim();
     const ticketUrl = /^https?:\/\//i.test(ticketUrlRaw) ? ticketUrlRaw : "";
 
@@ -396,8 +443,19 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const images = getCombinedImageUrls();
 
-    if (!title || !date) {
-      showToast("Title and Date are required!", "danger");
+    if (!title || !date || !endDate) {
+      showToast("Title, Start Date, and End Date are required!", "danger");
+      return;
+    }
+
+    const parsedStart = new Date(date);
+    const parsedEnd = new Date(endDate);
+    if (Number.isNaN(parsedStart.getTime()) || Number.isNaN(parsedEnd.getTime())) {
+      showToast("Please enter valid start and end dates.", "danger");
+      return;
+    }
+    if (parsedEnd <= parsedStart) {
+      showToast("End date must be after start date.", "danger");
       return;
     }
 
@@ -410,7 +468,8 @@ document.addEventListener("DOMContentLoaded", () => {
       const payload = {
         title: title,
         description: desc,
-        date: new Date(date).toISOString(),
+        date: parsedStart.toISOString(),
+        endDate: parsedEnd.toISOString(),
         type: "public",
         locationType: locType,
         locationValue: locValue,

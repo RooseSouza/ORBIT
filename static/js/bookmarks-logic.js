@@ -4,6 +4,13 @@ import { auth, app } from "/static/js/firebase-config.js";
 
 const db = getFirestore(app);
 
+function getEffectiveEndDate(eventData) {
+    const start = new Date(eventData?.sortDate || Date.now());
+    const end = eventData?.endDate ? new Date(eventData.endDate) : null;
+    if (end && !Number.isNaN(end.getTime())) return end;
+    return new Date(start.getTime() + 60 * 60 * 1000);
+}
+
 // --- TOGGLE BOOKMARK ---
 export async function toggleBookmark(eventData) {
     const user = auth.currentUser;
@@ -60,7 +67,7 @@ export async function getBookmarks() {
         if (docSnap.exists()) {
             // Filter out past events
             const all = docSnap.data().bookmarks || [];
-            const valid = all.filter(e => new Date(e.sortDate) >= new Date());
+            const valid = all.filter(e => getEffectiveEndDate(e) >= new Date());
             
             // If we filtered some out, update DB to clean up
             if (all.length !== valid.length) {
@@ -72,7 +79,7 @@ export async function getBookmarks() {
     } else {
         let bookmarks = JSON.parse(localStorage.getItem("orbitGuestBookmarks") || "[]");
         // Filter past
-        const valid = bookmarks.filter(e => new Date(e.sortDate) >= new Date());
+        const valid = bookmarks.filter(e => getEffectiveEndDate(e) >= new Date());
         localStorage.setItem("orbitGuestBookmarks", JSON.stringify(valid));
         return valid;
     }

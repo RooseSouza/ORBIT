@@ -10,7 +10,7 @@
 <div id="explore-map-view">
     <div class="explore-map-header">
         <h1>Explore Map</h1>
-        <p>Browse public events with Google map locations and open details on the side.</p>
+        <p>Browse public events on a map.</p>
     </div>
 
     <div class="explore-map-layout">
@@ -35,7 +35,8 @@
                 <p id="exploreDetailDesc" class="explore-detail-description"></p>
 
                 <div class="explore-detail-countdown-block">
-                    <p>Event Starts In:</p>
+                    <p id="exploreCountdownPrimary">Event Starts In:</p>
+                    <p id="exploreCountdownSecondary" style="display:none; margin-top:-8px; margin-bottom:10px; font-size:11px; text-transform:none;">Time Remaining Until End:</p>
                     <div class="explore-detail-countdown-grid">
                         <div class="explore-countdown-box">
                             <span id="exploreCdDays" class="explore-countdown-num">00</span>

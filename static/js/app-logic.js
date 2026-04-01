@@ -13,6 +13,7 @@ window.eventDataByKey = new Map();
 let currentFilters = {
     search: "",
     source: "all", time: "all", category: "all", categoryKeywords: [],
+    status: "all",
     showTasks: true, keywords: [], startDate: null, endDate: null,
     eventType: "all", locationType: "all", sortBy: "soonest"
 };
@@ -76,6 +77,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const modalDate = document.getElementById('modal-date');
     const modalMetaSeparator = document.getElementById('modal-meta-separator');
     const modalDesc = document.getElementById('modal-desc');
+    const modalCountdownWrapper = document.querySelector('.modal-countdown-wrapper');
+    const modalCountdownPrimary = document.getElementById('modal-countdown-primary');
+    const modalCountdownSecondary = document.getElementById('modal-countdown-secondary');
     const calendarSplitLayout = document.getElementById('calendarSplitLayout');
     const calendarDayPanel = document.getElementById('calendar-day-panel');
     const calendarDayPanelTitle = document.getElementById('calendar-day-panel-title');
@@ -525,7 +529,16 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!response.ok) return [];
             
             const data = await response.json();
-            return data.items.map(item => ({ type: 'Event', id: item.id, title: item.summary || "Untitled", description: item.description || "No description provided.", sortDate: item.start.dateTime || item.start.date, isAllDay: !item.start.dateTime, color: colorCategory }));
+            return data.items.map(item => ({
+                type: 'Event',
+                id: item.id,
+                title: item.summary || "Untitled",
+                description: item.description || "No description provided.",
+                sortDate: item.start.dateTime || item.start.date,
+                endDate: item.end?.dateTime || item.end?.date || null,
+                isAllDay: !item.start.dateTime,
+                color: colorCategory
+            }));
         } catch (e) { 
             if (e.message === "TOKEN_EXPIRED") throw e; // Bubble up
             return []; 
@@ -562,7 +575,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await response.json();
             if (!data.items) return [];
             
-            return data.items.map(item => ({ type: 'Task', id: item.id, title: item.title || "Untitled", description: item.notes || "No notes.", sortDate: item.due || new Date().toISOString(), isAllDay: true, color: colorCategory }));
+            return data.items.map(item => ({ type: 'Task', id: item.id, title: item.title || "Untitled", description: item.notes || "No notes.", sortDate: item.due || new Date().toISOString(), endDate: null, isAllDay: true, color: colorCategory }));
         } catch (e) { 
             if (e.message === "TOKEN_EXPIRED") throw e;
             return []; 
@@ -575,13 +588,19 @@ document.addEventListener('DOMContentLoaded', () => {
             const events = [];
             querySnapshot.forEach((doc) => {
                 const data = doc.data();
-                if (new Date(data.date) >= new Date()) {
+                const startDate = new Date(data.date);
+                const endDate = data.endDate ? new Date(data.endDate) : null;
+                const effectiveEnd = endDate && !Number.isNaN(endDate.getTime())
+                    ? endDate
+                    : new Date(startDate.getTime() + 60 * 60 * 1000);
+                if (effectiveEnd >= new Date()) {
                     events.push({
                         type: 'Public',
                         id: doc.id,
                         title: data.title,
                         description: data.description || "Public Event",
                         sortDate: data.date,
+                        endDate: data.endDate || null,
                         isAllDay: false,
                         color: colorCategory,
                         locType: data.locationType || 'text',
@@ -601,7 +620,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // ==========================================
     function applyFilters() {
         if(!window.globalEventsStore) return;
-        const now = new Date(); now.setHours(0,0,0,0); 
+        const now = new Date();
+        const todayStart = new Date(now);
+        todayStart.setHours(0, 0, 0, 0);
 
         const filtered = window.globalEventsStore.filter(item => {
             const itemDate = new Date(item.sortDate);
@@ -628,12 +649,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (locType !== currentFilters.locationType) return false;
             }
             if (currentFilters.time !== 'all') {
-                const oneWeek = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-                const oneMonth = new Date(now); oneMonth.setMonth(now.getMonth() + 1);
-                const oneYear = new Date(now); oneYear.setFullYear(now.getFullYear() + 1);
+                const oneWeek = new Date(todayStart.getTime() + 7 * 24 * 60 * 60 * 1000);
+                const oneMonth = new Date(todayStart); oneMonth.setMonth(todayStart.getMonth() + 1);
+                const oneYear = new Date(todayStart); oneYear.setFullYear(todayStart.getFullYear() + 1);
                 if (currentFilters.time === 'week' && itemDate > oneWeek) return false;
                 if (currentFilters.time === 'month' && itemDate > oneMonth) return false;
                 if (currentFilters.time === 'year' && itemDate > oneYear) return false;
+            }
+            if (currentFilters.status !== 'all') {
+                if (currentFilters.status === 'live' && !isEventLive(item)) return false;
+                if (currentFilters.status === 'upcoming' && getEventStartDate(item) <= now) return false;
             }
             if (currentFilters.startDate) {
                 const start = new Date(currentFilters.startDate);
@@ -683,6 +708,45 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (calSourceSelect) {
             calSourceSelect.value = currentFilters.source || 'all';
+        }
+    }
+
+    function syncLocationFilterUI() {
+        const locationFilterBtn = document.getElementById('locationFilterBtn');
+        const locationLabelByValue = {
+            all: 'All Locations',
+            text: 'Text Location',
+            map: 'Google Location'
+        };
+
+        if (locationFilterBtn) {
+            const label = locationFilterBtn.querySelector('span');
+            if (label) label.innerText = locationLabelByValue[currentFilters.locationType] || 'All Locations';
+            locationFilterBtn.classList.toggle('active', currentFilters.locationType !== 'all');
+        }
+
+        if (filterLocationType) {
+            filterLocationType.value = currentFilters.locationType || 'all';
+        }
+    }
+
+    function syncSortFilterUI() {
+        const sortFilterBtn = document.getElementById('sortFilterBtn');
+        const sortLabelByValue = {
+            soonest: 'Soonest First',
+            latest: 'Latest First',
+            name_asc: 'A-Z',
+            name_desc: 'Z-A'
+        };
+
+        if (sortFilterBtn) {
+            const label = sortFilterBtn.querySelector('span');
+            if (label) label.innerText = sortLabelByValue[currentFilters.sortBy] || 'Soonest First';
+            sortFilterBtn.classList.toggle('active', currentFilters.sortBy !== 'soonest');
+        }
+
+        if (filterSortBy) {
+            filterSortBy.value = currentFilters.sortBy || 'soonest';
         }
     }
 
@@ -745,10 +809,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 currentFilters.source = item.dataset.value;
             }
             if (filterType === 'time') currentFilters.time = item.dataset.value;
+            if (filterType === 'status') currentFilters.status = item.dataset.value;
+            if (filterType === 'location') currentFilters.locationType = item.dataset.value;
+            if (filterType === 'sort') currentFilters.sortBy = item.dataset.value;
             const menu = item.parentElement;
             menu.previousElementSibling.querySelector('span').innerText = item.innerText;
             menu.previousElementSibling.classList.remove('active'); menu.classList.remove('show');
             if (filterType === 'source') syncSourceFilterUI();
+            if (filterType === 'location') syncLocationFilterUI();
+            if (filterType === 'sort') syncSortFilterUI();
             applyFilters();
         });
     });
@@ -772,6 +841,8 @@ document.addEventListener('DOMContentLoaded', () => {
             currentFilters.eventType = "all";
             currentFilters.locationType = "all";
             currentFilters.sortBy = "soonest";
+            syncLocationFilterUI();
+            syncSortFilterUI();
             applyFilters();
         });
     }
@@ -810,6 +881,8 @@ document.addEventListener('DOMContentLoaded', () => {
         currentFilters.eventType = filterEventType ? filterEventType.value : 'all';
         currentFilters.locationType = filterLocationType ? filterLocationType.value : 'all';
         currentFilters.sortBy = filterSortBy ? filterSortBy.value : 'soonest';
+        syncLocationFilterUI();
+        syncSortFilterUI();
 
         const hasCustom =
             currentFilters.keywords.length > 0 ||
@@ -826,6 +899,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // When custom filters are active, clear quick filter button states.
             currentFilters.source = 'all';
             currentFilters.time = 'all';
+            currentFilters.status = 'all';
             currentFilters.category = 'all';
             currentFilters.categoryKeywords = [];
 
@@ -834,11 +908,17 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             const timeFilterBtn = document.getElementById('timeFilterBtn');
+            const statusFilterBtn = document.getElementById('statusFilterBtn');
             syncSourceFilterUI();
             if (timeFilterBtn) {
                 const label = timeFilterBtn.querySelector('span');
                 if (label) label.innerText = 'Any Time';
                 timeFilterBtn.classList.remove('active');
+            }
+            if (statusFilterBtn) {
+                const label = statusFilterBtn.querySelector('span');
+                if (label) label.innerText = 'All Status';
+                statusFilterBtn.classList.remove('active');
             }
         }
 
@@ -860,6 +940,8 @@ document.addEventListener('DOMContentLoaded', () => {
         currentFilters.eventType = 'all';
         currentFilters.locationType = 'all';
         currentFilters.sortBy = 'soonest';
+        syncLocationFilterUI();
+        syncSortFilterUI();
 
         if (categoryChips) {
             categoryChips.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
@@ -868,6 +950,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         currentFilters.category = 'all';
         currentFilters.categoryKeywords = [];
+        currentFilters.status = 'all';
+        const statusFilterBtn = document.getElementById('statusFilterBtn');
+        if (statusFilterBtn) {
+            const label = statusFilterBtn.querySelector('span');
+            if (label) label.innerText = 'All Status';
+            statusFilterBtn.classList.remove('active');
+        }
         if (openFilterModalBtn) openFilterModalBtn.classList.remove('active');
         document.getElementById('filter-modal-overlay').classList.remove('show'); applyFilters();
     });
@@ -908,6 +997,26 @@ document.addEventListener('DOMContentLoaded', () => {
         const div = document.createElement('div');
         div.textContent = String(text ?? '');
         return div.innerHTML;
+    }
+
+    function getEventStartDate(item) {
+        return new Date(item?.sortDate || item?.date || Date.now());
+    }
+
+    function getEventEndDate(item) {
+        if (item?.endDate) {
+            const parsedEnd = new Date(item.endDate);
+            if (!Number.isNaN(parsedEnd.getTime())) return parsedEnd;
+        }
+        const start = getEventStartDate(item);
+        return new Date(start.getTime() + 60 * 60 * 1000);
+    }
+
+    function isEventLive(item) {
+        const now = Date.now();
+        const start = getEventStartDate(item).getTime();
+        const end = getEventEndDate(item).getTime();
+        return now >= start && now < end;
     }
 
     function buildMapEmbedSrc(rawValue) {
@@ -966,7 +1075,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         let html = '';
         items.forEach((item, idx) => {
-            const startDate = new Date(item.sortDate);
+            const startDate = getEventStartDate(item);
+            const endDate = getEventEndDate(item);
             const day = String(startDate.getDate()).padStart(2, '0');
             const month = String(startDate.getMonth() + 1).padStart(2, '0');
             const year = startDate.getFullYear();
@@ -975,6 +1085,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             const now = new Date();
             const diffMs = startDate - now;
+            const isLive = isEventLive(item);
             let days = 0, hours = 0;
             if (diffMs > 0) {
                 days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
@@ -1006,6 +1117,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 ? `<div class="event-thumb"><img src="${thumbUrl}" alt="${escapeHtml(item.title || 'Event image')}"></div>`
                 : '';
 
+            const countdownHtml = isLive
+                ? `<div class="live-pill"><span class="live-dot"></span><span>LIVE</span></div>`
+                : `<div class="time-unit"><span class="time-num">${daysStr}</span><span class="time-label">DAYS</span></div>
+                   <div class="divider">|</div>
+                   <div class="time-unit"><span class="time-num">${hoursStr}</span><span class="time-label">HRS</span></div>`;
+
             html += `
                 <div class="event-card ${borderClass}">
                     ${bookmarkButtonHtml}
@@ -1020,9 +1137,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             <p>${shortDesc}</p>
                         </div>
                         <div class="countdown-box">
-                            <div class="time-unit"><span class="time-num">${daysStr}</span><span class="time-label">DAYS</span></div>
-                            <div class="divider">|</div>
-                            <div class="time-unit"><span class="time-num">${hoursStr}</span><span class="time-label">HRS</span></div>
+                            ${countdownHtml}
                         </div>
                     </div>
                 </div>`;
@@ -1069,6 +1184,7 @@ document.addEventListener('DOMContentLoaded', () => {
             item.description,
             dateStr,
             item.sortDate,
+            encodeURIComponent(item.endDate || ''),
             item.locType,
             item.locValue,
             item.type,
@@ -1084,18 +1200,35 @@ document.addEventListener('DOMContentLoaded', () => {
         const sent24h = JSON.parse(localStorage.getItem("sentReminders") || "[]");
         const sentCustom = JSON.parse(localStorage.getItem("sentReminders_custom") || "{}");
 
+        const computeRemainingParts = (diffMs) => {
+            const totalMinutes = Math.max(0, Math.ceil(diffMs / (1000 * 60)));
+            const days = Math.floor(totalMinutes / (60 * 24));
+            const hours = Math.floor((totalMinutes % (60 * 24)) / 60);
+            const minutes = totalMinutes % 60;
+            return { days, hours, minutes };
+        };
+
         bookmarkedEvents.forEach(item => {
             const now = new Date();
             const start = new Date(item.sortDate);
             const diffMs = start - now;
             const hoursLeft = diffMs / (1000 * 60 * 60);
+            const remaining = computeRemainingParts(diffMs);
 
             // Always: 24-hour email reminder
             if (hoursLeft > 23 && hoursLeft < 25 && !sent24h.includes(item.id)) {
                 fetch('/send-reminder', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email: user.email, title: item.title, days: 1, hours: 0 })
+                    body: JSON.stringify({
+                        email: user.email,
+                        title: item.title,
+                        days: 1,
+                        hours: 0,
+                        remainingDays: remaining.days,
+                        remainingHours: remaining.hours,
+                        remainingMinutes: remaining.minutes
+                    })
                 });
                 sent24h.push(item.id);
                 localStorage.setItem("sentReminders", JSON.stringify(sent24h));
@@ -1106,13 +1239,22 @@ document.addEventListener('DOMContentLoaded', () => {
             if (reminderMinutes === 0) return;
             const reminderHours = reminderMinutes / 60;
             const remKey = `${item.id}_${reminderMinutes}`;
-            if (hoursLeft > Math.max(0, reminderHours - 1) && hoursLeft < reminderHours + 1 && !sentCustom[remKey]) {
+            const customWindowHours = 5 / 60;
+            if (hoursLeft <= reminderHours && hoursLeft >= Math.max(0, reminderHours - customWindowHours) && !sentCustom[remKey]) {
                 const remDays = Math.floor(reminderMinutes / (60 * 24));
                 const remHoursVal = Math.floor((reminderMinutes % (60 * 24)) / 60);
                 fetch('/send-reminder', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email: user.email, title: item.title, days: remDays, hours: remHoursVal })
+                    body: JSON.stringify({
+                        email: user.email,
+                        title: item.title,
+                        days: remDays,
+                        hours: remHoursVal,
+                        remainingDays: remaining.days,
+                        remainingHours: remaining.hours,
+                        remainingMinutes: remaining.minutes
+                    })
                 });
                 sentCustom[remKey] = true;
                 localStorage.setItem("sentReminders_custom", JSON.stringify(sentCustom));
@@ -1200,12 +1342,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- MODAL LOGIC ---
-    window.openModal = async function(title, desc, dateStr, rawIsoDate, locType, locValue, itemType, imagesPayload, ticketUrlPayload, itemIdPayload) {
+    window.openModal = async function(title, desc, dateStr, rawIsoDate, endIsoPayload, locType, locValue, itemType, imagesPayload, ticketUrlPayload, itemIdPayload) {
         if(!modalOverlay) return;
         const dTitle = safeDecode(title);
         const dDesc = safeDecode(desc);
         const dDate = safeDecode(dateStr);
         const dLocValue = safeDecode(locValue);
+        const dEndIso = safeDecode(endIsoPayload || '');
         const dLocType = safeDecode(locType);
         const dTicketUrl = safeDecode(ticketUrlPayload || '');
         const dItemId = safeDecode(itemIdPayload || '');
@@ -1279,7 +1422,7 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 const matchedItem = window.currentFilteredEvents.find((e) => e.id === dItemId)
                     || window.globalEventsStore.find((e) => e.id === dItemId)
-                    || { id: dItemId, title: dTitle, description: dDesc, sortDate: rawIsoDate, locType: dLocType, locValue: dLocValue, type: itemType, images: imageUrls, ticketUrl: dTicketUrl };
+                    || { id: dItemId, title: dTitle, description: dDesc, sortDate: rawIsoDate, endDate: dEndIso || null, locType: dLocType, locValue: dLocValue, type: itemType, images: imageUrls, ticketUrl: dTicketUrl };
 
                 currentModalEvent = matchedItem;
                 modalBookmarkBtn.style.display = 'inline-flex';
@@ -1296,13 +1439,63 @@ document.addEventListener('DOMContentLoaded', () => {
 
         modalOverlay.classList.add('show');
         document.body.classList.add('modal-open');
-        startLiveCountdown(rawIsoDate);
+        startLiveCountdown(rawIsoDate, dEndIso || null);
     }
 
-    function startLiveCountdown(targetIsoDate) {
+    function startLiveCountdown(targetIsoDate, endIsoDate = null) {
         if(countdownInterval) clearInterval(countdownInterval);
-        const targetDate = new Date(targetIsoDate).getTime();
-        const update = () => { const now = new Date().getTime(); const distance = targetDate - now; if (distance < 0) { elDays.innerText = "00"; elHours.innerText = "00"; elMins.innerText = "00"; elSecs.innerText = "00"; clearInterval(countdownInterval); return; } const d = Math.floor(distance / (1000 * 60 * 60 * 24)); const h = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)); const m = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60)); const s = Math.floor((distance % (1000 * 60)) / 1000); elDays.innerText = String(d).padStart(2, '0'); elHours.innerText = String(h).padStart(2, '0'); elMins.innerText = String(m).padStart(2, '0'); elSecs.innerText = String(s).padStart(2, '0'); }; update(); countdownInterval = setInterval(update, 1000);
+        const startTarget = new Date(targetIsoDate).getTime();
+        const fallbackEnd = new Date(startTarget + 60 * 60 * 1000).getTime();
+        const parsedEnd = endIsoDate ? new Date(endIsoDate).getTime() : fallbackEnd;
+        const endTarget = Number.isFinite(parsedEnd) ? parsedEnd : fallbackEnd;
+
+        const update = () => {
+            const now = new Date().getTime();
+            const isLiveNow = now >= startTarget && now < endTarget;
+            const distance = (isLiveNow ? endTarget : startTarget) - now;
+
+            if (modalCountdownPrimary) {
+                modalCountdownPrimary.innerText = isLiveNow ? 'Event is LIVE' : 'Event Starts In:';
+                modalCountdownPrimary.classList.toggle('live-text', isLiveNow);
+            }
+            if (modalCountdownSecondary) {
+                modalCountdownSecondary.style.display = isLiveNow ? 'block' : 'none';
+            }
+            if (modalCountdownWrapper) {
+                modalCountdownWrapper.classList.toggle('is-live', isLiveNow);
+            }
+
+            if (distance < 0) {
+                elDays.innerText = "00";
+                elHours.innerText = "00";
+                elMins.innerText = "00";
+                elSecs.innerText = "00";
+                if (modalCountdownPrimary) {
+                    modalCountdownPrimary.innerText = 'Event Ended';
+                    modalCountdownPrimary.classList.remove('live-text');
+                }
+                if (modalCountdownSecondary) {
+                    modalCountdownSecondary.style.display = 'none';
+                }
+                if (modalCountdownWrapper) {
+                    modalCountdownWrapper.classList.remove('is-live');
+                }
+                clearInterval(countdownInterval);
+                return;
+            }
+
+            const d = Math.floor(distance / (1000 * 60 * 60 * 24));
+            const h = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            const m = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+            const s = Math.floor((distance % (1000 * 60)) / 1000);
+            elDays.innerText = String(d).padStart(2, '0');
+            elHours.innerText = String(h).padStart(2, '0');
+            elMins.innerText = String(m).padStart(2, '0');
+            elSecs.innerText = String(s).padStart(2, '0');
+        };
+
+        update();
+        countdownInterval = setInterval(update, 1000);
     }
     function closeModal() { if(modalOverlay) modalOverlay.classList.remove('show'); document.body.classList.remove('modal-open'); if(countdownInterval) clearInterval(countdownInterval); currentModalEvent = null; }
     if(closeModalBtn) closeModalBtn.addEventListener('click', closeModal); if(modalOverlay) modalOverlay.addEventListener('click', (e) => { if(e.target === modalOverlay) closeModal(); });
@@ -1333,7 +1526,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const icon = item.type === 'Task' ? 'Task' : (item.type === 'Public' ? 'Public' : 'Event');
                 const dt = new Date(item.sortDate); const timeStr = item.isAllDay ? "All Day" : dt.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}); const safeDateStr = `${dateString} at ${timeStr}`; const colorBorder = item.color === 'blue' ? 'border-blue' : 'border-green';
                 const div = document.createElement('div'); div.className = `day-event-item ${colorBorder}`; div.innerHTML = `<h4>${item.title}</h4><p>${timeStr} • ${icon}</p>`;
-                div.addEventListener('click', () => { closeDayModal(); setTimeout(() => { openModal(encodeURIComponent(item.title), encodeURIComponent(item.description), encodeURIComponent(safeDateStr), item.sortDate, encodeURIComponent(item.locType), encodeURIComponent(item.locValue), item.type, encodeURIComponent(JSON.stringify(item.images || [])), encodeURIComponent(item.ticketUrl || ''), encodeURIComponent(item.id || '')); }, 300); });
+                div.addEventListener('click', () => { closeDayModal(); setTimeout(() => { openModal(encodeURIComponent(item.title), encodeURIComponent(item.description), encodeURIComponent(safeDateStr), item.sortDate, encodeURIComponent(item.endDate || ''), encodeURIComponent(item.locType), encodeURIComponent(item.locValue), item.type, encodeURIComponent(JSON.stringify(item.images || [])), encodeURIComponent(item.ticketUrl || ''), encodeURIComponent(item.id || '')); }, 300); });
                 dayEventsList.appendChild(div);
             });
         }
@@ -1393,6 +1586,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     encodeURIComponent(item.description),
                     encodeURIComponent(safeDateStr),
                     item.sortDate,
+                    encodeURIComponent(item.endDate || ''),
                     encodeURIComponent(item.locType),
                     encodeURIComponent(item.locValue),
                     item.type,
@@ -1435,6 +1629,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     const label = document.createElement('span');
                     label.textContent = e.title || 'Untitled';
                     line.appendChild(label);
+                    if (isEventLive(e)) {
+                        const liveDot = document.createElement('span');
+                        liveDot.className = 'cal-line-live-dot';
+                        line.appendChild(liveDot);
+                    }
                     lineContainer.appendChild(line);
                 });
                 dayDiv.appendChild(lineContainer);

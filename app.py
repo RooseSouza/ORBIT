@@ -130,12 +130,27 @@ def send_reminder():
     event_title = data.get('title')
     days = data.get('days')
     hours = data.get('hours')
+    remaining_days = data.get('remainingDays')
+    remaining_hours = data.get('remainingHours')
+    remaining_minutes = data.get('remainingMinutes')
 
     msg = Message(f"Reminder: {event_title}",
                   sender=app.config['MAIL_USERNAME'],
                   recipients=[email])
     
-    if days == 0:
+    def _plural(value, unit):
+        return f"{value} {unit}" if value == 1 else f"{value} {unit}s"
+
+    if remaining_days is not None and remaining_hours is not None and remaining_minutes is not None:
+        parts = []
+        if remaining_days:
+            parts.append(_plural(remaining_days, "day"))
+        if remaining_hours:
+            parts.append(_plural(remaining_hours, "hour"))
+        if remaining_minutes or not parts:
+            parts.append(_plural(remaining_minutes, "minute"))
+        time_str = " and ".join(parts)
+    elif days == 0:
         time_str = f"{hours} hour(s)"
     elif hours == 0:
         time_str = f"{days} day(s)"

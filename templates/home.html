@@ -77,6 +77,14 @@
             </div>
 
             <div class="filter-section">
+                <h3 class="filter-title">Custom Keyword</h3>
+                <div class="custom-keyword-input">
+                    <input type="text" id="customKeywordInput" placeholder="e.g., dance, yoga">
+                    <button id="addCustomKeywordBtn" class="add-keyword-btn">Add</button>
+                </div>
+            </div>
+
+            <div class="filter-section">
                 <h3 class="filter-title">Categories</h3>
                 <div id="categoryChips" class="category-chips">
                     <button class="chip active" data-cat="all">All</button>
@@ -117,12 +125,45 @@
             </div>
 
             <div class="filter-section">
-                <h3 class="filter-title">Custom Keyword</h3>
-                <div class="custom-keyword-input">
-                    <input type="text" id="customKeywordInput" placeholder="e.g., dance, yoga">
-                    <button id="addCustomKeywordBtn" class="add-keyword-btn">Add</button>
+                <h3 class="filter-title">Status</h3>
+                <div class="custom-dropdown full-width">
+                    <button class="dropdown-btn" id="statusFilterBtn"><span>All Status</span><i
+                            class="fa-solid fa-chevron-down"></i></button>
+                    <div class="dropdown-menu">
+                        <div class="dropdown-item" data-filter-type="status" data-value="all">All Status</div>
+                        <div class="dropdown-item" data-filter-type="status" data-value="upcoming">Upcoming</div>
+                        <div class="dropdown-item" data-filter-type="status" data-value="live">Live</div>
+                    </div>
                 </div>
             </div>
+
+            <div class="filter-section">
+                <h3 class="filter-title">Location Type</h3>
+                <div class="custom-dropdown full-width">
+                    <button class="dropdown-btn" id="locationFilterBtn"><span>All Locations</span><i
+                            class="fa-solid fa-chevron-down"></i></button>
+                    <div class="dropdown-menu">
+                        <div class="dropdown-item" data-filter-type="location" data-value="all">All Locations</div>
+                        <div class="dropdown-item" data-filter-type="location" data-value="text">Text Location</div>
+                        <div class="dropdown-item" data-filter-type="location" data-value="map">Google Location</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="filter-section">
+                <h3 class="filter-title">Sort Order</h3>
+                <div class="custom-dropdown full-width">
+                    <button class="dropdown-btn" id="sortFilterBtn"><span>Soonest First</span><i
+                            class="fa-solid fa-chevron-down"></i></button>
+                    <div class="dropdown-menu">
+                        <div class="dropdown-item" data-filter-type="sort" data-value="soonest">Soonest First</div>
+                        <div class="dropdown-item" data-filter-type="sort" data-value="latest">Latest First</div>
+                        <div class="dropdown-item" data-filter-type="sort" data-value="name_asc">A-Z</div>
+                        <div class="dropdown-item" data-filter-type="sort" data-value="name_desc">Z-A</div>
+                    </div>
+                </div>
+            </div>
+
         </div>
     </div>
 

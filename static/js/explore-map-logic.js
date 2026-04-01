@@ -11,6 +11,26 @@ let bookmarkEnabled = false;
 let currentDetailBookmarkPayload = null;
 let bookmarkSyncToken = 0;
 
+function getStartDate(item) {
+    return new Date(item?.date || item?.sortDate || Date.now());
+}
+
+function getEndDate(item) {
+    if (item?.endDate) {
+        const parsed = new Date(item.endDate);
+        if (!Number.isNaN(parsed.getTime())) return parsed;
+    }
+    const start = getStartDate(item);
+    return new Date(start.getTime() + 60 * 60 * 1000);
+}
+
+function isEventLive(item) {
+    const now = Date.now();
+    const startMs = getStartDate(item).getTime();
+    const endMs = getEndDate(item).getTime();
+    return now >= startMs && now < endMs;
+}
+
 function extractMapSrc(rawValue) {
     const raw = String(rawValue || "").trim();
     if (!raw) return "";
@@ -78,24 +98,47 @@ function escapeHtml(value) {
     return div.innerHTML;
 }
 
-function startCountdown(targetIso) {
+function startCountdown(targetIso, endIso = null) {
     const daysEl = document.getElementById("exploreCdDays");
     const hoursEl = document.getElementById("exploreCdHours");
     const minutesEl = document.getElementById("exploreCdMinutes");
     const secondsEl = document.getElementById("exploreCdSeconds");
+    const primaryEl = document.getElementById("exploreCountdownPrimary");
+    const secondaryEl = document.getElementById("exploreCountdownSecondary");
 
     if (!daysEl || !hoursEl || !minutesEl || !secondsEl) return;
     if (countdownTimer) clearInterval(countdownTimer);
 
     const targetTime = new Date(targetIso).getTime();
+    const fallbackEnd = targetTime + 60 * 60 * 1000;
+    const parsedEnd = endIso ? new Date(endIso).getTime() : fallbackEnd;
+    const endTime = Number.isFinite(parsedEnd) ? parsedEnd : fallbackEnd;
+
     const update = () => {
         const now = Date.now();
-        const diff = targetTime - now;
+        const liveNow = now >= targetTime && now < endTime;
+        const diff = (liveNow ? endTime : targetTime) - now;
+
+        if (primaryEl) {
+            primaryEl.textContent = liveNow ? "Event is LIVE" : "Event Starts In:";
+            primaryEl.classList.toggle("live-text", liveNow);
+        }
+        if (secondaryEl) {
+            secondaryEl.style.display = liveNow ? "block" : "none";
+        }
+
         if (diff <= 0) {
             daysEl.textContent = "00";
             hoursEl.textContent = "00";
             minutesEl.textContent = "00";
             secondsEl.textContent = "00";
+            if (primaryEl) {
+                primaryEl.textContent = "Event Ended";
+                primaryEl.classList.remove("live-text");
+            }
+            if (secondaryEl) {
+                secondaryEl.style.display = "none";
+            }
             clearInterval(countdownTimer);
             countdownTimer = null;
             return;
@@ -137,6 +180,7 @@ function renderDetails(eventData) {
             title: safeTitle,
             description: eventData.description || "No description provided.",
             sortDate: eventData.date,
+            endDate: eventData.endDate || null,
             type: "Public",
             color: "blue",
             isAllDay: false,
@@ -173,7 +217,7 @@ function renderDetails(eventData) {
     detailCard.classList.remove("is-hidden");
     detailCard.setAttribute("aria-hidden", "false");
 
-    startCountdown(eventData.date);
+    startCountdown(eventData.date, eventData.endDate || null);
 
     if (bookmarkBtn) {
         if (!bookmarkEnabled || !currentDetailBookmarkPayload?.id) {
@@ -248,9 +292,13 @@ async function buildMappedEvents(db) {
         const data = docSnap.data();
         if (data.locationType !== "map") return;
 
-        const eventDate = new Date(data.date);
-        if (Number.isNaN(eventDate.getTime())) return;
-        if (eventDate.getTime() < nowMs) return;
+        const startDate = new Date(data.date);
+        if (Number.isNaN(startDate.getTime())) return;
+        const parsedEnd = data.endDate ? new Date(data.endDate) : null;
+        const endDate = parsedEnd && !Number.isNaN(parsedEnd.getTime())
+            ? parsedEnd
+            : new Date(startDate.getTime() + 60 * 60 * 1000);
+        if (endDate.getTime() < nowMs) return;
 
         const mapSrc = extractMapSrc(data.locationValue);
         if (!mapSrc) return;
@@ -260,6 +308,7 @@ async function buildMappedEvents(db) {
             title: data.title || "Untitled Event",
             description: data.description || "No description provided.",
             date: data.date,
+            endDate: data.endDate || null,
             mapSrc,
             ticketUrl: data.ticketUrl || ""
         });
@@ -355,6 +404,15 @@ document.addEventListener("DOMContentLoaded", () => {
                 const marker = window.L.marker(latLng, {
                     title: eventData.title
                 }).addTo(map);
+
+                if (isEventLive(eventData)) {
+                    window.L.circleMarker(latLng, {
+                        radius: 6,
+                        className: "explore-live-pin-dot",
+                        stroke: false,
+                        fillOpacity: 1
+                    }).addTo(map);
+                }
 
                 marker.bindTooltip(String(eventData.title || "Event"), {
                     permanent: true,
