@@ -73,6 +73,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const modalOverlay = document.getElementById('event-modal-overlay');
     const closeModalBtn = document.getElementById('close-modal-btn-inner');
     const modalBookmarkBtn = document.getElementById('modal-bookmark-btn');
+    const imagePopupOverlay = document.getElementById('image-popup-overlay');
+    const imagePopupClose = document.getElementById('image-popup-close');
+    const imagePopupImg = document.getElementById('image-popup-img');
     const modalTitle = document.getElementById('modal-title');
     const modalDate = document.getElementById('modal-date');
     const modalMetaSeparator = document.getElementById('modal-meta-separator');
@@ -96,6 +99,52 @@ document.addEventListener('DOMContentLoaded', () => {
     let countdownInterval = null;
     let selectedCalendarDayCell = null;
     let currentModalEvent = null;
+
+    function closeImagePopup() {
+        if (!imagePopupOverlay || !imagePopupImg) return;
+        imagePopupOverlay.classList.remove('show');
+        imagePopupOverlay.setAttribute('aria-hidden', 'true');
+        imagePopupImg.src = '';
+        document.body.classList.remove('modal-open');
+    }
+
+    function openImagePopup(src, altText = 'Event image preview') {
+        if (!imagePopupOverlay || !imagePopupImg) return;
+        const safeSrc = String(src || '').trim();
+        if (!safeSrc) return;
+        imagePopupImg.src = safeSrc;
+        imagePopupImg.alt = String(altText || 'Event image preview');
+        imagePopupOverlay.classList.add('show');
+        imagePopupOverlay.setAttribute('aria-hidden', 'false');
+        document.body.classList.add('modal-open');
+    }
+
+    window.openOrbitImagePopup = openImagePopup;
+
+    if (imagePopupClose) {
+        imagePopupClose.addEventListener('click', closeImagePopup);
+    }
+    if (imagePopupOverlay) {
+        imagePopupOverlay.addEventListener('click', (e) => {
+            if (e.target === imagePopupOverlay) closeImagePopup();
+        });
+    }
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && imagePopupOverlay && imagePopupOverlay.classList.contains('show')) {
+            closeImagePopup();
+        }
+    });
+
+    // Capture image clicks before card-level click handlers so thumbnails open a popup instead.
+    document.addEventListener('click', (e) => {
+        const imageEl = e.target.closest('.event-thumb img, .day-event-thumb img, .modal-carousel-image, .explore-detail-images-grid img');
+        if (!imageEl) return;
+        const src = imageEl.getAttribute('src');
+        if (!src) return;
+        e.preventDefault();
+        e.stopPropagation();
+        openImagePopup(src, imageEl.getAttribute('alt') || 'Event image preview');
+    }, true);
 
     let currentMonth = new Date().getMonth();
     let currentYear = new Date().getFullYear();

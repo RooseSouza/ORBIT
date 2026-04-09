@@ -1,7 +1,7 @@
 from flask import Flask, render_template, request, jsonify
 from flask_mail import Mail, Message
 from flask_cors import CORS
-from datetime import datetime
+from datetime import datetime, timedelta
 from dotenv import load_dotenv
 import base64
 import os
@@ -256,6 +256,7 @@ def api_create_event():
     Body (JSON):
       title       (required)  – event name
       date        (required)  – ISO 8601, e.g. "2026-06-15T18:00:00"
+            endDate     (optional)  – ISO 8601; defaults to date + 1 hour
       description (optional)  – event details
       location    (optional)  – venue / address text
             ticketUrl   (optional)  – booking page URL
@@ -271,6 +272,7 @@ def api_create_event():
 
     title = str(data.get('title', '')).strip()
     date = str(data.get('date', '')).strip()
+    end_date = str(data.get('endDate') or data.get('end_date') or '').strip()
     description = str(data.get('description', '')).strip()
     location = str(data.get('location', '')).strip()
     ticket_url = str(data.get('ticketUrl') or data.get('ticket_url') or '').strip()
@@ -295,15 +297,27 @@ def api_create_event():
 
     # Validate ISO 8601 date
     try:
-        datetime.fromisoformat(date.replace('Z', '+00:00'))
+        parsed_start = datetime.fromisoformat(date.replace('Z', '+00:00'))
     except ValueError:
         return jsonify({"success": False, "error": "Invalid date – use ISO 8601, e.g. 2026-06-15T18:00:00"}), 422
+
+    if end_date:
+        try:
+            parsed_end = datetime.fromisoformat(end_date.replace('Z', '+00:00'))
+        except ValueError:
+            return jsonify({"success": False, "error": "Invalid endDate – use ISO 8601, e.g. 2026-06-15T19:00:00"}), 422
+        if parsed_end <= parsed_start:
+            return jsonify({"success": False, "error": "endDate must be later than date"}), 422
+    else:
+        parsed_end = parsed_start + timedelta(hours=1)
+        end_date = parsed_end.isoformat()
 
     doc_ref = _db.collection('public_events').document()
     doc_ref.set({
         'title': title,
         'description': description,
         'date': date,
+        'endDate': end_date,
         'type': 'public',
         'locationType': 'text',
         'locationValue': location,
@@ -333,6 +347,7 @@ def api_get_events():
             'id':          doc.id,
             'title':       d.get('title'),
             'date':        d.get('date'),
+            'endDate':     d.get('endDate'),
             'description': d.get('description'),
             'location':    d.get('locationValue'),
             'ticketUrl':   d.get('ticketUrl') or '',

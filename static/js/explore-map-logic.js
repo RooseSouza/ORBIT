@@ -34,36 +34,59 @@ function isEventLive(item) {
 function extractMapSrc(rawValue) {
     const raw = String(rawValue || "").trim();
     if (!raw) return "";
-    const srcMatch = raw.match(/src=\"([^\"]+)\"/i);
+    const srcMatch = raw.match(/src=["']([^"']+)["']/i);
     const src = srcMatch ? srcMatch[1] : raw;
-    return /^https?:\/\//i.test(src) ? src : "";
+    const normalizedSrc = src.replace(/&amp;/gi, "&");
+    return /^https?:\/\//i.test(normalizedSrc) ? normalizedSrc : "";
 }
 
 function extractLatLng(mapSrc) {
     const value = String(mapSrc || "");
 
-    const pairPatternA = value.match(/!2d(-?\d+(?:\.\d+)?)!3d(-?\d+(?:\.\d+)?)/i);
-    if (pairPatternA) {
-        return { lat: parseFloat(pairPatternA[2]), lng: parseFloat(pairPatternA[1]) };
-    }
+    const toLatLng = (latRaw, lngRaw) => {
+        const lat = parseFloat(latRaw);
+        const lng = parseFloat(lngRaw);
+        if (Number.isNaN(lat) || Number.isNaN(lng)) return null;
+        if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
+        return { lat, lng };
+    };
 
-    const pairPatternB = value.match(/!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/i);
-    if (pairPatternB) {
-        return { lat: parseFloat(pairPatternB[1]), lng: parseFloat(pairPatternB[2]) };
-    }
+    const fromLastMatch = (pattern, toLatIndex, toLngIndex) => {
+        const matches = Array.from(value.matchAll(pattern));
+        for (let i = matches.length - 1; i >= 0; i -= 1) {
+            const candidate = toLatLng(matches[i][toLatIndex], matches[i][toLngIndex]);
+            if (candidate) return candidate;
+        }
+        return null;
+    };
 
+    // Prefer explicit coordinates in URL query/path before parsing encoded embed blobs.
     try {
         const parsed = new URL(value);
         const center = parsed.searchParams.get("center") || "";
-        const q = parsed.searchParams.get("q") || "";
+        const q = parsed.searchParams.get("q") || parsed.searchParams.get("query") || "";
         const queryValue = center || q;
-        const coordMatch = queryValue.match(/(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)/);
-        if (coordMatch) {
-            return { lat: parseFloat(coordMatch[1]), lng: parseFloat(coordMatch[2]) };
+        const queryCoords = queryValue.match(/(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)/);
+        if (queryCoords) {
+            const direct = toLatLng(queryCoords[1], queryCoords[2]);
+            if (direct) return direct;
+        }
+
+        const pathDecoded = decodeURIComponent(parsed.pathname);
+        const atCoords = pathDecoded.match(/@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/);
+        if (atCoords) {
+            const direct = toLatLng(atCoords[1], atCoords[2]);
+            if (direct) return direct;
         }
     } catch (_) {
-        return null;
+        // Fall through to token parsing for non-standard or partial URLs.
     }
+
+    const pairPatternB = fromLastMatch(/!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/gi, 1, 2);
+    if (pairPatternB) return pairPatternB;
+
+    const pairPatternA = fromLastMatch(/!2d(-?\d+(?:\.\d+)?)!3d(-?\d+(?:\.\d+)?)/gi, 2, 1);
+    if (pairPatternA) return pairPatternA;
 
     return null;
 }
@@ -96,6 +119,23 @@ function escapeHtml(value) {
     const div = document.createElement("div");
     div.textContent = String(value ?? "");
     return div.innerHTML;
+}
+
+function getDisplayImageUrls(images) {
+    const list = Array.isArray(images) ? images : [];
+    const out = [];
+    const seen = new Set();
+
+    for (const raw of list) {
+        const url = String(raw || "").trim();
+        if (!url) continue;
+        if (!/^https?:\/\//i.test(url) && !/^data:image\//i.test(url)) continue;
+        if (seen.has(url)) continue;
+        seen.add(url);
+        out.push(url);
+    }
+
+    return out.slice(0, 8);
 }
 
 function startCountdown(targetIso, endIso = null) {
@@ -168,6 +208,7 @@ function renderDetails(eventData) {
     const titleEl = document.getElementById("exploreDetailTitle");
     const dateEl = document.getElementById("exploreDetailDate");
     const descEl = document.getElementById("exploreDetailDesc");
+    const imagesEl = document.getElementById("exploreDetailImages");
     const locationEl = document.getElementById("exploreDetailLocation");
     const ticketEl = document.getElementById("exploreDetailTicket");
     const bookmarkBtn = document.getElementById("exploreDetailBookmarkBtn");
@@ -175,20 +216,20 @@ function renderDetails(eventData) {
     const mapSrc = eventData.mapSrc || "";
     const latLng = eventData.latLng || null;
     const safeTitle = String(eventData.title || "").trim() || "Untitled Event";
-        currentDetailBookmarkPayload = {
-            id: eventData.id,
-            title: safeTitle,
-            description: eventData.description || "No description provided.",
-            sortDate: eventData.date,
-            endDate: eventData.endDate || null,
-            type: "Public",
-            color: "blue",
-            isAllDay: false,
-            locType: "map",
-            locValue: eventData.mapSrc || "",
-            ticketUrl: eventData.ticketUrl || "",
-            images: []
-        };
+    currentDetailBookmarkPayload = {
+        id: eventData.id,
+        title: safeTitle,
+        description: eventData.description || "No description provided.",
+        sortDate: eventData.date,
+        endDate: eventData.endDate || null,
+        type: "Public",
+        color: "blue",
+        isAllDay: false,
+        locType: eventData.locationType || "text",
+        locValue: eventData.locationValue || eventData.mapSrc || "",
+        ticketUrl: eventData.ticketUrl || "",
+        images: getDisplayImageUrls(eventData.images)
+    };
 
     const googleMapsHref = latLng
         ? `https://www.google.com/maps/search/?api=1&query=${latLng.lat},${latLng.lng}`
@@ -197,6 +238,32 @@ function renderDetails(eventData) {
     titleEl.textContent = safeTitle;
     dateEl.textContent = formatEventDate(eventData.date);
     descEl.textContent = eventData.description || "No description provided.";
+
+    if (imagesEl) {
+        const imageUrls = getDisplayImageUrls(eventData.images);
+        if (imageUrls.length) {
+            imagesEl.innerHTML = `
+                <h3 class="explore-detail-images-title">Images</h3>
+                <div class="explore-detail-images-grid">
+                    ${imageUrls
+                        .map((src) => `<button type="button" class="explore-image-popup-btn"><img src="${escapeHtml(src)}" alt="${escapeHtml(safeTitle)} image"></button>`)
+                        .join("")}
+                </div>
+            `;
+
+            imagesEl.querySelectorAll(".explore-image-popup-btn img").forEach((imgEl) => {
+                imgEl.addEventListener("click", (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (typeof window.openOrbitImagePopup === "function") {
+                        window.openOrbitImagePopup(imgEl.getAttribute("src"), imgEl.getAttribute("alt") || "Event image preview");
+                    }
+                });
+            });
+        } else {
+            imagesEl.innerHTML = "";
+        }
+    }
 
     if (locationEl) {
         locationEl.innerHTML = googleMapsHref
@@ -290,7 +357,9 @@ async function buildMappedEvents(db) {
     const rawEvents = [];
     snapshot.forEach((docSnap) => {
         const data = docSnap.data();
-        if (data.locationType !== "map") return;
+        const locationType = String(data.locationType || "text").toLowerCase();
+        const locationValue = String(data.locationValue || "").trim();
+        if (!locationValue) return;
 
         const startDate = new Date(data.date);
         if (Number.isNaN(startDate.getTime())) return;
@@ -300,8 +369,8 @@ async function buildMappedEvents(db) {
             : new Date(startDate.getTime() + 60 * 60 * 1000);
         if (endDate.getTime() < nowMs) return;
 
-        const mapSrc = extractMapSrc(data.locationValue);
-        if (!mapSrc) return;
+        const mapSrc = locationType === "map" ? extractMapSrc(locationValue) : "";
+        if (locationType === "map" && !mapSrc) return;
 
         rawEvents.push({
             id: docSnap.id,
@@ -309,8 +378,11 @@ async function buildMappedEvents(db) {
             description: data.description || "No description provided.",
             date: data.date,
             endDate: data.endDate || null,
+            locationType,
+            locationValue,
             mapSrc,
-            ticketUrl: data.ticketUrl || ""
+            ticketUrl: data.ticketUrl || "",
+            images: Array.isArray(data.images) ? data.images : []
         });
     });
 
@@ -318,9 +390,11 @@ async function buildMappedEvents(db) {
 
     const mapped = [];
     for (const item of rawEvents) {
-        let latLng = extractLatLng(item.mapSrc);
+        let latLng = extractLatLng(item.mapSrc || item.locationValue);
         if (!latLng) {
-            const addressQuery = extractAddressQuery(item.mapSrc);
+            const addressQuery = item.locationType === "map"
+                ? extractAddressQuery(item.mapSrc)
+                : item.locationValue;
             if (addressQuery) {
                 latLng = await geocodeAddressFree(addressQuery);
                 await sleep(GEOCODE_DELAY_MS);
